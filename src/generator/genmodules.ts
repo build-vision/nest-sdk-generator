@@ -4,10 +4,10 @@
 
 import * as path from 'path'
 import { SdkModules } from '../analyzer/controllers'
-import { SdkMethod } from '../analyzer/methods'
+import { SdkHttpMethod, SdkMethod } from '../analyzer/methods'
 import { SdkMethodParams } from '../analyzer/params'
 import { resolveRouteWith, unparseRoute } from '../analyzer/route'
-import { normalizeExternalFilePath, ResolvedTypeDeps } from '../analyzer/typedeps'
+import { ResolvedTypeDeps, normalizeExternalFilePath } from '../analyzer/typedeps'
 import { panic } from '../logging'
 
 /**
@@ -85,16 +85,34 @@ export function generateSdkModules(modules: SdkModules): Map<string, string> {
       out.push('')
       out.push(`export default {`)
 
-      for (const method of controller.methods) {
-        const ret = method.returnType.resolvedType
-        const promised = ret.startsWith('Promise<') ? ret : `Promise<${ret}>`
+      const { mutations, queries } = controller.methods.reduce(
+        (acc, method) => {
+          if (method.httpMethod === SdkHttpMethod.Get) {
+            acc.queries.push(method)
+          } else {
+            acc.mutations.push(method)
+          }
 
-        out.push('')
-        out.push(`  // ${method.httpMethod} @ ${unparseRoute(method.route)}`)
-        out.push(`  ${method.name}(${generateSdkMethodParams(method.params)}): ${promised} {`)
-        out.push(generateCentralRequest(method).replace(/^/gm, '    '))
-        out.push('  },')
+          return acc
+        },
+        { mutations: [] as SdkMethod[], queries: [] as SdkMethod[] }
+      ); 
+
+      out.push(`  queries: {`)
+      
+      for (const method of queries) {
+        out.push(generateSdkMethod(method))
       }
+
+      out.push('  },')
+
+      out.push(`  mutations: {`)
+      
+      for (const method of mutations) {
+        out.push(generateSdkMethod(method))
+      }
+
+      out.push('  },')
 
       out.push('')
       out.push('};')
@@ -117,6 +135,19 @@ export function generateSdkModules(modules: SdkModules): Map<string, string> {
   }
 
   return genFiles
+}
+
+export function generateSdkMethod(method: SdkMethod): string {
+  const out = [];
+  const ret = method.returnType.resolvedType
+  const promised = ret.startsWith('Promise<') ? ret : `Promise<${ret}>`
+
+  out.push('')
+  out.push(`  // ${method.httpMethod} @ ${unparseRoute(method.route)}`)
+  out.push(`  ${method.name}(${generateSdkMethodParams(method.params)}): ${promised} {`)
+  out.push(generateCentralRequest(method).replace(/^/gm, '    '))
+  out.push('  },')
+  return out.join('\n')
 }
 
 /**
@@ -159,5 +190,5 @@ export function generateCentralRequest(method: SdkMethod): string {
     panic('Internal error: failed to resolve route: ' + resolvedRoute.message)
   }
 
-  return `return request('${method.httpMethod}', \`${resolvedRoute}\`, body, query) as any`
+  return `return request('${method.httpMethod}', \`${resolvedRoute}\`, body, query)`
 }
