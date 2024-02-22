@@ -2,7 +2,7 @@
  * @file Generate SDK modules
  */
 
-import * as path from 'path'
+import { SdkController } from '../analyzer/controller'
 import { SdkModules } from '../analyzer/controllers'
 import { SdkHttpMethod, SdkMethod } from '../analyzer/methods'
 import { SdkMethodParams } from '../analyzer/params'
@@ -19,122 +19,120 @@ export function generateSdkModules(modules: SdkModules): Map<string, string> {
   /** Generated module files */
   const genFiles = new Map<string, string>()
 
+  /** Index file content: Exports all controllers */
+  const indexContent: string[] = []
+
   // Iterate over each module
   for (const [moduleName, controllers] of modules) {
     // Iterate over each of the module's controllers
     for (const [controllerName, controller] of controllers) {
-      /** Generated controller's content */
-      const out: string[] = []
-
-      out.push('/// Parent module: ' + moduleName)
-      out.push(`/// Controller: "${controllerName}" registered as "${controller.registrationName}" (${controller.methods.length} routes)`)
-      out.push('')
-      out.push('import { request } from "../central";')
-
-      const imports = new Map<string, string[]>()
-
-      const depsToImport = new Array<ResolvedTypeDeps>()
-
-      // Iterate over each controller
-      for (const method of controller.methods.values()) {
-        const { parameters: args, query, body } = method.params
-
-        depsToImport.push(method.returnType)
-
-        if (args) {
-          depsToImport.push(...args.values())
-        }
-
-        if (query) {
-          depsToImport.push(...query.values())
-        }
-
-        if (body) {
-          if (body.full) {
-            depsToImport.push(body.type)
-          } else {
-            depsToImport.push(...body.fields.values())
-          }
-        }
-      }
-
-      // Build the imports list
-      for (const dep of depsToImport) {
-        for (const [file, types] of dep.dependencies) {
-          let imported = imports.get(file)
-
-          if (!imported) {
-            imported = []
-            imports.set(file, imported)
-          }
-
-          for (const typ of types) {
-            if (!imported.includes(typ)) {
-              imported.push(typ)
-            }
-          }
-        }
-      }
-
-      for (const [file, types] of imports) {
-        out.push(
-          `import type { ${types.join(', ')} } from "../_types/${normalizeExternalFilePath(file.replace(/\\/g, '/')).replace(/\\/g, '/')}";`
-        )
-      }
-
-      out.push('')
-      out.push(`export default {`)
-
-      const { mutations, queries } = controller.methods.reduce(
-        (acc, method) => {
-          if (method.httpMethod === SdkHttpMethod.Get) {
-            acc.queries.push(method)
-          } else {
-            acc.mutations.push(method)
-          }
-
-          return acc
-        },
-        { mutations: [] as SdkMethod[], queries: [] as SdkMethod[] }
-      ); 
-
-      out.push(`  queries: {`)
-      
-      for (const method of queries) {
-        out.push(generateSdkMethod(method))
-      }
-
-      out.push('  },')
-
-      out.push(`  mutations: {`)
-      
-      for (const method of mutations) {
-        out.push(generateSdkMethod(method))
-      }
-
-      out.push('  },')
-
-      out.push('')
-      out.push('};')
-
-      genFiles.set(path.join(moduleName, controller.camelClassName + '.ts'), out.join('\n'))
-    }
-
-    /** Generated module's content */
-    const moduleContent: string[] = []
-
-    moduleContent.push('/// Module name: ' + moduleName)
-    moduleContent.push('')
-
-    for (const controller of controllers.keys()) {
-      moduleContent.push(`export { default as ${controller} } from "./${controller}";`)
-    }
-
-    // Generate the SDK module file
-    genFiles.set(path.join(moduleName, 'index.ts'), moduleContent.join('\n'))
+      genFiles.set(controller.camelClassName + '.ts', generateController(moduleName, controller))
+      indexContent.push(`export { default as ${controller.camelClassName} } from "./${controller.camelClassName}";`)
+    }    
   }
 
+  genFiles.set('index.ts', indexContent.join('\n'))
+
   return genFiles
+}
+
+export function generateController(moduleName: string, controller: SdkController): string {
+  const controllerName = controller.camelClassName
+  /** Generated controller's content */
+  const out: string[] = []
+
+  out.push('/// Parent module: ' + moduleName)
+  out.push(`/// Controller: "${controllerName}" registered as "${controller.registrationName}" (${controller.methods.length} routes)`)
+  out.push(`/// File Path: ${controller.path}`)
+  out.push('')
+  out.push('import { request } from "./central";')
+
+  const imports = new Map<string, string[]>()
+
+  const depsToImport = new Array<ResolvedTypeDeps>()
+
+  // Iterate over each controller
+  for (const method of controller.methods.values()) {
+    const { parameters: args, query, body } = method.params
+
+    depsToImport.push(method.returnType)
+
+    if (args) {
+      depsToImport.push(...args.values())
+    }
+
+    if (query) {
+      depsToImport.push(...query.values())
+    }
+
+    if (body) {
+      if (body.full) {
+        depsToImport.push(body.type)
+      } else {
+        depsToImport.push(...body.fields.values())
+      }
+    }
+  }
+
+  // Build the imports list
+  for (const dep of depsToImport) {
+    for (const [file, types] of dep.dependencies) {
+      let imported = imports.get(file)
+
+      if (!imported) {
+        imported = []
+        imports.set(file, imported)
+      }
+
+      for (const typ of types) {
+        if (!imported.includes(typ)) {
+          imported.push(typ)
+        }
+      }
+    }
+  }
+
+  for (const [file, types] of imports) {
+    out.push(
+      `import type { ${types.join(', ')} } from "../_types/${normalizeExternalFilePath(file.replace(/\\/g, '/')).replace(/\\/g, '/')}";`
+    )
+  }
+
+  out.push('')
+  out.push(`export default {`)
+
+  const { mutations, queries } = controller.methods.reduce(
+    (acc, method) => {
+      if (method.httpMethod === SdkHttpMethod.Get) {
+        acc.queries.push(method)
+      } else {
+        acc.mutations.push(method)
+      }
+
+      return acc
+    },
+    { mutations: [] as SdkMethod[], queries: [] as SdkMethod[] }
+  ); 
+
+  out.push(`  queries: {`)
+  
+  for (const method of queries) {
+    out.push(generateSdkMethod(method))
+  }
+
+  out.push('  },')
+
+  out.push(`  mutations: {`)
+  
+  for (const method of mutations) {
+    out.push(generateSdkMethod(method))
+  }
+
+  out.push('  },')
+
+  out.push('')
+  out.push('};')
+  return out.join('\n');
 }
 
 export function generateSdkMethod(method: SdkMethod): string {

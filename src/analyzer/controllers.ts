@@ -7,7 +7,7 @@ import * as path from 'path'
 import { Project } from 'ts-morph'
 import { debug, format, panic, warn } from '../logging'
 import { findFileAbove } from '../utils'
-import { analyzeController, SdkController } from './controller'
+import { SdkController, analyzeController } from './controller'
 import { getModuleName } from './module'
 
 export type SdkModules = Map<string, Map<string, SdkController>>
@@ -15,6 +15,7 @@ export type SdkModules = Map<string, Map<string, SdkController>>
 export function analyzeControllers(controllers: string[], absoluteSrcPath: string, project: Project): SdkModules {
   /** Hierarchised SDK informations */
   const collected = new Map<string, Map<string, SdkController>>()
+  const usedControllerNames = new Set<string>()
 
   /**
    * Modules cache: contains for a given directory the nearest module file's path and name
@@ -107,6 +108,17 @@ export function analyzeControllers(controllers: string[], absoluteSrcPath: strin
           `Detected controller whose registration name {yellow} collides with a JavaScript's native object property`,
           metadata.registrationName
         )
+      }
+
+      // Ensure the each controller has a unique name across modules
+      if (usedControllerNames.has(metadata.camelClassName)) {
+        panic(
+          `Detected two controllers with the same name {yellow}. Second occurrence found in {yellow}`,
+          metadata.registrationName,
+          metadata.path
+        )
+      } else {
+        usedControllerNames.add(metadata.camelClassName)
       }
 
       moduleSdkInfos.set(metadata.camelClassName, metadata)

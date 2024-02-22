@@ -21,7 +21,9 @@ export function unreachable(message: string, ...params: Array<number | string>):
 }
 
 export function warn(message: string, ...params: Array<number | string>) {
+  if (config.verbose) {
   console.warn(chalk.yellow(format(message, ...params)))
+  }
 }
 
 export function println(message: string, ...params: Array<number | string>) {
