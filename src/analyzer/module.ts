@@ -33,24 +33,19 @@ export function getModuleName(project: Project, modulePath: string, sourcePath: 
   }
 
   const decorators = classDecl.getDecorators()
+  const moduleDecorator = decorators.find((dec) => dec.getName() === 'Module')
 
-  if (decorators.length > 1) {
-    panic(`Found multiple decorators on module class {yellow} declared at {yellow}`, moduleName, modulePath)
-  }
-
-  const decName = decorators[0].getName()
-
-  if (decName !== 'Module') {
+  if (!moduleDecorator) {
     panic(
       format(
-        `The decorator on module class {yellow} was expected to be a {yellow}, found an {yellow} instead\nModule path is: {yellow}`,
+        `Module class {yellow} is missing {yellow} decorator\nModule path is: {yellow}`,
         moduleName,
         '@Module',
-        '@' + decName,
         modulePath
       )
     )
   }
+
 
   return moduleName.substr(0, 1).toLocaleLowerCase() + moduleName.substr(1)
 }
