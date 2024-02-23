@@ -90,8 +90,12 @@ export function analyzeUri(uriPath: string): Route | Error {
  * Get the named parameters of a parsed route
  * @param route
  */
-export function paramsOfRoute(route: Route): string[] {
-  return route.parts.map((part) => ('param' in part ? part.param : null)).filter((e) => e !== null) as string[]
+export function routePartIsParam(part: RoutePart): part is { readonly param: string } {
+  return "param" in part
+}
+
+export function paramsFromRoute(route: Route): string[] {
+  return route.parts.filter(routePartIsParam).map((part) => part.param)
 }
 
 /**

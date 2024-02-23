@@ -1,7 +1,7 @@
 {
   "name": "@buildvision/nest-sdk-generator",
   "author": "BuildVision <christophe@buildvision.io>",
-  "version": "1.2.2",
+  "version": "2.0.0",
   "description": "A full-powered SDK generator for NestJS",
   "keywords": [
     "nest",
@@ -16,7 +16,8 @@
   "scripts": {
     "prepare": "npm run build",
     "build": "tsc -p tsconfig.json --outDir build",
-    "start": "npm run build && node build/bin.js"
+    "start": "npm run build && node build/bin.js",
+    "typecheck": "bun tsc --project tsconfig.json --noEmit"
   },
   "bin": "build/bin.js",
   "dependencies": {

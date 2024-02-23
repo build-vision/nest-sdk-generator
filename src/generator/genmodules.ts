@@ -5,8 +5,8 @@
 import { SdkController } from '../analyzer/controller'
 import { SdkModules } from '../analyzer/controllers'
 import { SdkHttpMethod, SdkMethod } from '../analyzer/methods'
-import { SdkMethodParams } from '../analyzer/params'
-import { resolveRouteWith, unparseRoute } from '../analyzer/route'
+import { SdkMethodParam, getParamResolvedTypes, isParamResolvedType } from '../analyzer/params'
+import { paramsFromRoute, resolveRouteWith, unparseRoute } from '../analyzer/route'
 import { ResolvedTypeDeps, normalizeExternalFilePath } from '../analyzer/typedeps'
 import { panic } from '../logging'
 
@@ -53,25 +53,12 @@ export function generateController(moduleName: string, controller: SdkController
 
   // Iterate over each controller
   for (const method of controller.methods.values()) {
-    const { parameters: args, query, body } = method.params
+    const { routeParams, queryParams, bodyParams } = method.params
 
     depsToImport.push(method.returnType)
-
-    if (args) {
-      depsToImport.push(...args.values())
-    }
-
-    if (query) {
-      depsToImport.push(...query.values())
-    }
-
-    if (body) {
-      if (body.full) {
-        depsToImport.push(body.type)
-      } else {
-        depsToImport.push(...body.fields.values())
-      }
-    }
+    depsToImport.push(...getParamResolvedTypes(routeParams))
+    depsToImport.push(...getParamResolvedTypes(queryParams))
+    depsToImport.push(...getParamResolvedTypes(bodyParams))
   }
 
   // Build the imports list
@@ -117,7 +104,7 @@ export function generateController(moduleName: string, controller: SdkController
   out.push(`  queries: {`)
   
   for (const method of queries) {
-    out.push(generateSdkMethod(method))
+    out.push(generateSdkMethod(method, controller))
   }
 
   out.push('  },')
@@ -125,7 +112,7 @@ export function generateController(moduleName: string, controller: SdkController
   out.push(`  mutations: {`)
   
   for (const method of mutations) {
-    out.push(generateSdkMethod(method))
+    out.push(generateSdkMethod(method, controller))
   }
 
   out.push('  },')
@@ -135,45 +122,57 @@ export function generateController(moduleName: string, controller: SdkController
   return out.join('\n');
 }
 
-export function generateSdkMethod(method: SdkMethod): string {
+export function generateSdkMethod(method: SdkMethod, controller: SdkController): string {
   const out = [];
   const ret = method.returnType.resolvedType
   const promised = ret.startsWith('Promise<') ? ret : `Promise<${ret}>`
+  const paramsType = generateSdkMethodParams(method)
 
   out.push('')
+  out.push(`  // ${controller.camelClassName}.${method.name}`)
   out.push(`  // ${method.httpMethod} @ ${unparseRoute(method.route)}`)
-  out.push(`  ${method.name}(${generateSdkMethodParams(method.params)}): ${promised} {`)
-  out.push(generateCentralRequest(method).replace(/^/gm, '    '))
+  out.push(`  // ${controller.path}`)
+  out.push(`${generateSdkMethodSignature(method)} {`)
+  out.push(generateSdkMethodBody(method))
   out.push('  },')
   return out.join('\n')
 }
 
-/**
- * Generate the method parameters for a given SDK method
- * @param params
- * @returns
- */
-export function generateSdkMethodParams(params: SdkMethodParams): string {
-  // List of parameters (e.g. `id` in `/get/:id`, analyzed from the usages of the `@Param` decorator)
-  const parameters = params.parameters ? [...params.parameters].map(([name, type]) => `${name}: ${type.resolvedType}`) : []
+export function generateSdkMethodSignature(method: SdkMethod, prefix = '    '): string {
+  const ret = method.returnType.resolvedType
+  const promised = ret.startsWith('Promise<') ? ret : `Promise<${ret}>`
+  const paramsType = generateSdkMethodParams(method)
 
-  // List of query values (e.g. `id` in `?id=xxx`, analyzed from the usages of the `@Query` decorator)
-  const query = params.query ? [...params.query].map(([name, type]) => `${name}: ${type.resolvedType}`) : []
+  return `${prefix}${method.name}(${paramsType}): ${promised}`
+}
 
-  // Body's content (type used with the `@Body` decorator)
-  const body = params.body
-    ? params.body.full
-      ? params.body.type.resolvedType
-      : '{ ' + [...params.body.fields].map(([name, type]) => `${name}: ${type.resolvedType}`).join(', ') + ' }'
-    : null
+export function generateSdkMethodParams(method: SdkMethod): string {
+  const { params, httpMethod, name  } = method;
 
-  // The ternary conditions below are made to eclipse useless parameters
-  // For instance, if we're not expecting any query nor body, these two parameters can be omitted when calling the method
-  return [
-    `params: {${' ' + parameters.join(', ') + ' '}}${parameters.length === 0 && !body && query.length === 0 ? ' = {}' : ''}`,
-    `body: ${body ?? '{}'}${!body && query.length === 0 ? ' = {}' : ''}`,
-    `query: {${' ' + query.join(', ') + ' '}}${query.length === 0 ? ' = {}' : ''}`,
-  ].join(', ')
+  if (httpMethod === SdkHttpMethod.Get && params.bodyParams) {
+    panic(`${httpMethod} ${name} should not have Body params`)
+  }
+  if (httpMethod !== SdkHttpMethod.Get && params.queryParams) {
+    panic(`${httpMethod} ${name} should not have Query params`)
+  }
+
+  const inputTypes = [];
+
+  if (params.routeParams) {
+    inputTypes.push(methodParamsToString(params.routeParams))
+  }
+
+  if (params.queryParams) {
+    inputTypes.push(methodParamsToString(params.queryParams))
+  }
+
+  if (params.bodyParams) {
+    inputTypes.push(methodParamsToString(params.bodyParams))
+  }
+
+  const mergedInputType = inputTypes.join(' &\n')
+
+  return mergedInputType ? `params: ${mergedInputType}` : ''
 }
 
 /**
@@ -181,12 +180,45 @@ export function generateSdkMethodParams(params: SdkMethodParams): string {
  * @param method
  * @returns
  */
-export function generateCentralRequest(method: SdkMethod): string {
-  const resolvedRoute = resolveRouteWith(method.route, (param) => '${params.' + param + '}')
+export function generateSdkMethodBody(method: SdkMethod, prefix = '    '): string {
+  const output = []
+  const { route, httpMethod } = method
+  const routeParams = paramsFromRoute(route)
+  const resolvedRoute = resolveRouteWith(route, (param) => '${' + param + '}')
+  const hasAnyParams = method.params.routeParams || method.params.queryParams || method.params.bodyParams
 
   if (resolvedRoute instanceof Error) {
     panic('Internal error: failed to resolve route: ' + resolvedRoute.message)
   }
+  const routeParamsSpread = routeParams.length > 0 ? `${routeParams.join(', ')},` : ''
 
-  return `return request('${method.httpMethod}', \`${resolvedRoute}\`, body, query)`
+  // Destructure parameters if they exist
+  if (hasAnyParams) {
+    output.push(`const { ${routeParamsSpread} ...rest } = params`)
+  }
+
+  const isGet = httpMethod === SdkHttpMethod.Get
+  const body = isGet || !hasAnyParams ? "null" : "rest"
+  const query = isGet && hasAnyParams ? "rest" : "{}" 
+
+  
+  output.push(`return request('${httpMethod}', \`${resolvedRoute}\`, ${body}, ${query})`)
+  return output.join('\n')
+}
+
+export function methodParamsToString(params: SdkMethodParam): string {
+  if (params === null) {
+    return ''
+  }
+
+  if (isParamResolvedType(params)) {
+    return params.resolvedType
+  }
+
+  const output = ["{"]
+  for (const [name, type] of Object.entries(params)) {
+    output.push(`${name}: ${type.resolvedType},`)
+  }
+  output.push("}")
+  return output.join("\n")
 }

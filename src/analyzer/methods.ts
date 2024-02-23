@@ -5,8 +5,8 @@
 import { blue } from 'chalk'
 import { ClassDeclaration, MethodDeclaration, Node } from 'ts-morph'
 import { debug, format } from '../logging'
-import { analyzeParams, SdkMethodParams } from './params'
-import { analyzeUri, debugUri, Route } from './route'
+import { SdkMethodParams, extractParams } from './params'
+import { Route, analyzeUri, debugUri } from './route'
 import { ResolvedTypeDeps, resolveTypeDependencies } from './typedeps'
 
 /**
@@ -141,9 +141,7 @@ export function analyzeMethods(
 
     // Analyze the method's arguments
     debug('├─── Analyzing arguments...')
-    const params = analyzeParams(httpMethod, route, method.getParameters(), filePath, absoluteSrcPath)
-
-    if (params instanceof Error) return params
+    const params = extractParams({controllerClass, httpMethod, route, method, filePath, absoluteSrcPath})
 
     // Get the method's return type
     debug('├─── Resolving return type...')

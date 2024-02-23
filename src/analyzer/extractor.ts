@@ -8,7 +8,8 @@ import { MagicType } from '../config'
 import { debug, format, panic, unreachable, warn } from '../logging'
 import { analyzeClassDeps } from './classdeps'
 import { SdkModules } from './controllers'
-import { getImportResolvedType, ResolvedTypeDeps, resolveTypeDependencies } from './typedeps'
+import { getParamResolvedTypes } from './params'
+import { ResolvedTypeDeps, getImportResolvedType, resolveTypeDependencies } from './typedeps'
 
 /** Valid extensions for TypeScript module files */
 export const MODULE_EXTENSIONS = ['.ts', '.d.ts', '.tsx', '.d.tsx', '.js', '.jsx']
@@ -462,27 +463,12 @@ export function flattenSdkResolvedTypes(sdkModules: SdkModules): ResolvedTypeDep
   for (const module of sdkModules.values()) {
     for (const controller of module.values()) {
       for (const method of controller.methods.values()) {
-        const { parameters: args, query, body } = method.params
+        const { routeParams, queryParams, bodyParams } = method.params
 
         flattened.push(method.returnType)
-
-        if (args) {
-          flattened.push(...args.values())
-        }
-
-        if (query) {
-          flattened.push(...query.values())
-        }
-
-        if (!body) {
-          continue
-        }
-
-        if (body.full) {
-          flattened.push(body.type)
-        } else {
-          flattened.push(...body.fields.values())
-        }
+        flattened.push(...getParamResolvedTypes(routeParams))
+        flattened.push(...getParamResolvedTypes(queryParams))
+        flattened.push(...getParamResolvedTypes(bodyParams))
       }
     }
   }

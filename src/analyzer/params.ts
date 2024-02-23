@@ -2,31 +2,89 @@
  * @file Analyzer for the source API's controllers' methods' parameters
  */
 
-import { ParameterDeclaration } from 'ts-morph'
-import { debug, format, warn } from '../logging'
-import { expectSingleStrLitDecorator } from './decorator'
+import { ClassDeclaration, Decorator, MethodDeclaration, Node, ParameterDeclaration, Type } from 'ts-morph'
+import { debug, panic } from '../logging'
 import { SdkHttpMethod } from './methods'
-import { paramsOfRoute, Route } from './route'
+import { Route, paramsFromRoute } from './route'
 import { ResolvedTypeDeps, resolveTypeDependencies } from './typedeps'
+
+/**
+ * Type of a parameter that must be passed to an SDK method: Body, Query or Route Param
+ * Supports accessing parameters individually by key or as a whole object
+ * 
+ * EXAMPLE
+ * 
+ * Controller Method:
+ * 
+ * getStuff(@Query('email') email: string, @Query('companyId'): CompanyId)
+ * 
+ * SDK Method Param:
+ * { email: string, companyId: CompanyId }
+ * 
+ * OR
+ * 
+ * Controller Method:
+ * type EmailAndCompanyId = { email: string, companyId: CompanyId }
+ * getStuff(@Query(): EmailAndCompanyId)
+ * 
+ * SDK Method Param:
+ * EmailAndCompanyId
+ */
+
+
+export type SdkMethodParam =  SdkMethodParamMap | ResolvedTypeDeps | null;
+export type SdkMethodParamMap = { [key: string]: ResolvedTypeDeps };
+
+export const isParamResolvedType = (param: SdkMethodParam): param is ResolvedTypeDeps => {
+  if (param === null) {
+    return false
+  }
+  return 'rawType' in param && 'resolvedType' in param && 'relativeFilePath' in param && 'dependencies' in param && 'localTypes' in param
+}
+
+export const getParamResolvedTypes = (param: SdkMethodParam): ResolvedTypeDeps[] => {
+  if (param === null) {
+    return []
+  }
+  if (isParamResolvedType(param)) {
+    return [param]
+  }
+  return Object.values(param)
+}
 
 /**
  * SDK interface for a controller's method's parameters
  */
 export interface SdkMethodParams {
-  /** Route parameters */
-  parameters: Map<string, ResolvedTypeDeps> | null
-
-  /** Query parameters */
-  query: Map<string, ResolvedTypeDeps> | null
-
-  /** Body parameters */
-  body: SdkMethodBodyParam | null
+  routeParams: SdkMethodParam,
+  queryParams: SdkMethodParam,
+  bodyParams:  SdkMethodParam,
+  context: MethodContext,
 }
 
-/**
- * Single body parameter in a SDK's method
- */
-export type SdkMethodBodyParam = { full: true; type: ResolvedTypeDeps } | { full: false; fields: Map<string, ResolvedTypeDeps> }
+export type MethodContext = {
+  controllerClass: ClassDeclaration,
+  method: MethodDeclaration,
+  httpMethod: SdkHttpMethod,
+  route: Route,
+  filePath: string,
+  absoluteSrcPath: string,
+}
+
+export enum ArgDecorator {
+  Param = 'Param',
+  Query = 'Query',
+  Body = 'Body',
+}
+
+export type DecoratedArg = {
+  arg: ParameterDeclaration,
+  argParamKey: string | null,
+  decorator: Decorator,
+  decoratorType: ArgDecorator,
+  context: MethodContext,
+}
+
 
 /**
  * Generate a SDK interface for a controller's method's parameters
@@ -37,205 +95,163 @@ export type SdkMethodBodyParam = { full: true; type: ResolvedTypeDeps } | { full
  * @param absoluteSrcPath Absolute path to the source directory
  * @returns A SDK interface for the method's parameters
  */
-export function analyzeParams(
-  httpMethod: SdkHttpMethod,
-  route: Route,
-  args: ParameterDeclaration[],
-  filePath: string,
-  absoluteSrcPath: string
-): SdkMethodParams | Error {
-  // The collected informations we will return
-  const collected: SdkMethodParams = {
-    parameters: null,
-    query: null,
-    body: null,
+export function extractParams(
+  context: MethodContext
+): SdkMethodParams {
+  const { route, filePath } = context
+  const { Param, Query, Body } = extractDecoratedArgs(context)
+  const resolvedParams: SdkMethodParams = {
+    routeParams: mergeDecoratedArgs(Param),
+    queryParams: mergeDecoratedArgs(Query),
+    bodyParams: mergeDecoratedArgs(Body),
+    context,
   }
 
-  // Get the named parameters of the route
-  const routeParams = paramsOfRoute(route)
+  /**
+   * Validate Route Params exist in route URL
+   */
+  const { routeParams } = resolvedParams
+  if (routeParams) {
+    const allowedRouteParams = new Set(paramsFromRoute(route)) 
+    const usedRouteParams = routeParams instanceof Type ? 
+      // If routeParams was resolved to a single type, assume there's only one decorated argument
+      Param[0].arg.getType().getProperties().map((prop) => prop.getName()) :
+      // If routeParams was resolved to a map, assume the keys are the route params
+      Object.keys(routeParams)
+    
+    for (const usedParam of usedRouteParams) {
+      if (!allowedRouteParams.has(usedParam)) {
+          panicWithContext(`Route param ${usedParam} does not appear in route URL`, context)
+        }
+    }
+  }
 
-  // Treat all arguments (to not confuse with the route's parameters)
+  
+  return resolvedParams
+}
+
+export function extractDecoratedArgs(context: MethodContext): Record<ArgDecorator, DecoratedArg[]> {
+    const decoratedArgs = {
+      [ArgDecorator.Param]: [] as DecoratedArg[],
+      [ArgDecorator.Query]: [] as DecoratedArg[],
+      [ArgDecorator.Body]: [] as DecoratedArg[],
+    }
+
+  const { method, filePath, controllerClass } = context
+  const args = method.getParameters()
+
   for (const arg of args) {
-    const name = arg.getName()
+    const argName = arg.getName()
 
-    debug('├───── Detected argument: {yellow}', name)
+    debug('├───── Detected argument: {yellow}', argName)
 
     // Arguments are collected as soon as they have a decorator like @Query() or @Body()
-    const decs = arg.getDecorators()
+    const argDecorators = arg.getDecorators().filter((dec) => (Object.values(ArgDecorator) as string[]).includes(dec.getName()))
 
-    if (decs.length === 0) {
+    if (argDecorators.length === 0) {
       // If we have no argument, this is not an argument we are interested in, so we just skip it
       debug('├───── Skipping this argument as it does not have a decorator')
       continue
-    } else if (decs.length > 1) {
-      // If we have more than one decorator, this could mean we have for instance an @NotEmpty() @Query() or something like this,
-      //  which is currently not supported.
-      return new Error('Skipping this argument as it has multiple decorators, which is currently not supported')
-    }
-
-    // Get the only decrator
-    const dec = decs[0]
-    const decName = dec.getName()
-
-    // Treat the @Param() decorator
-    if (decName === 'Param') {
-      debug('├───── Detected decorator {blue}', '@Param')
-
-      // We expect a single string argument for this decorator,
-      // which is the route parameter's name
-      const paramName = expectSingleStrLitDecorator(dec)
-
-      if (paramName instanceof Error) return paramName
-
-      // If there is no argument, this argument is a global receiver which maps the full set of parameters
-      // We theorically *could* extract the type informations from this object type, but this would be insanely complex
-      // So, we just skip it as it's a lot more simple, and is not commonly used anyway as it has a set of downsides
-      if (paramName === null) {
-        warn('├───── Skipping this argument as it is a generic parameters receiver, which is currently not supported')
-        continue
-      }
-
-      // Ensure the specified parameter appears in the method's route
-      if (!routeParams.includes(paramName)) return new Error(format('├───── Cannot map unknown parameter {yellow}', paramName))
-
-      debug('├───── Mapping argument to parameter: {yellow}', paramName)
-
-      // Get the route parameter's type
-      const typ = resolveTypeDependencies(arg.getType(), filePath, absoluteSrcPath)
-
-      debug('├───── Detected parameter type: {yellow} ({magentaBright} dependencies)', typ.resolvedType, typ.dependencies.size)
-
-      // Update the method's route parameters
-
-      if (paramName in {}) {
-        return new Error(
-          format(`Detected @Param() field whose name {yellow} collides with a JavaScript's native object property`, paramName)
-        )
-      }
-
-      collected.parameters ??= new Map()
-      collected.parameters.set(paramName, typ)
-    }
-
-    // Treat the @Query() decorator
-    else if (decName === 'Query') {
-      debug('├───── Detected decorator {blue}', '@Query')
-
-      // We expect a single string argument for this decorator,
-      // which is the query parameter's name
-      const queryName = expectSingleStrLitDecorator(dec)
-
-      if (queryName instanceof Error) return queryName
-
-      // If there is no argument, this argument is a global receiver which maps the full set of parameters
-      // We theorically *could* extract the type informations from this object type, but this would be insanely complex
-      // So, we just skip it as it's a lot more simple, and is not commonly used anyway as it has a set of downsides
-      if (queryName === null) {
-        warn('├───── Skipping this argument as it is a generic query receiver')
-        continue
-      }
-
-      debug('├───── Mapping argument to query: {yellow}', queryName)
-
-      // Get the parameter's type
-      const typ = resolveTypeDependencies(arg.getType(), filePath, absoluteSrcPath)
-
-      debug(`├───── Detected query type: {yellow} ({magentaBright} dependencies)`, typ.resolvedType, typ.dependencies.size)
-
-      // Update the method's query parameter
-
-      if (queryName in {}) {
-        return new Error(
-          format(`Detected @Query() field whose name {yellow} collides with a JavaScript's native object property`, queryName)
-        )
-      }
-
-      collected.query ??= new Map()
-      collected.query.set(queryName, typ)
-    }
-
-    // Treat the @Body() decorator
-    else if (decName === 'Body') {
-      debug('├───── Detected decorator {blue}', '@Body')
-
-      // GET requests cannot have a BODY
-      if (httpMethod === SdkHttpMethod.Get) {
-        return new Error('GET requests cannot have a BODY!')
-      }
-
-      // We expect a single string argument for this decorator,
-      // which is the body field's name
-      const fieldName = expectSingleStrLitDecorator(dec)
-
-      if (fieldName instanceof Error) return fieldName
-
-      // Get the field's type
-      const typ = resolveTypeDependencies(arg.getType(), filePath, absoluteSrcPath)
-
-      const depsCount = typ.dependencies.size
-
-      debug(
-        `├───── Detected BODY type: {cyan} ({magentaBright} ${
-          depsCount === 0 ? 'no dependency' : depsCount > 1 ? 'dependencies' : 'dependency'
-        })`,
-        typ.resolvedType,
-        depsCount
+    } else if (argDecorators.length > 1) {
+      panic(
+        `${controllerClass.getName()} ${method.getName()} has multiple decorators on argument ${argName} ${argDecorators.map((dec) => dec.getName()).join(', ')}`
       )
+    }
+    // Get the only decrator
+    const decorator = argDecorators[0]
+    const decoratorType = decorator.getName() as ArgDecorator
+    const argParamKey = extractArgParamKey({ ...context, arg, decorator })
+    const argType = arg.getType()
 
-      // If there no name was provided to the decorator, then the decorator is a generic receiver which means it maps to the full body type
-      // This also means we can map the BODY type to this argument's type
-      if (fieldName === null) {
-        const body = collected.body
+    if (!argParamKey && !argType.isObject()) {
+      panic(
+        `${controllerClass.getName()} ${method.getName()} generic controller argument ${decoratorType}() ${argName} must be an object type`
+      )
+    }
 
-        // If we previously had an @Body(<name>) decorator on another argument, we have an important risk of mistyping
-        // => e.g. `@Body("a") a: string, @Body() body: { a: number }` is invalid as the type for the `a` field mismatches
-        // => It's easy to make an error as the @Body() type is often hidden behind a DTO
-        // But that's extremely complex to check automatically, so we just display a warning instead
-        // Also, that's not the kind of thing we make on purpose very often, so it's more likely it's an error, which makes it even more important
-        //  to display a warning here.
-        if (body?.full === false)
-          warn('├───── Detected full @Body() decorator after a single parameter. This is considered a bad practice, avoid it if you can!')
-        // Having two generic @Body() decorators is meaningless and will likey lead to errors, so we return a precise error here
-        else if (body?.full) {
-          return new Error(
-            format(
-              `Detected two @Body() decorators: found {yellow} previously, while method argument {yellow} indicates type {yellow}`,
-              body.type.resolvedType,
-              name,
-              typ.resolvedType
-            )
-          )
-        }
+    decoratedArgs[decoratorType].push({
+      arg,
+      argParamKey,
+      decorator,
+      decoratorType,
+      context,
+    })
+  }
 
-        debug("├───── Mapping argument to full request's body")
+  return decoratedArgs
+}
 
-        // Update the whole BODY type
-        collected.body = { full: true, type: typ }
-      } else {
-        // Here we have an @Body(<string>) decorator
+export function extractArgParamKey(context: MethodContext & {  
+  arg: ParameterDeclaration,
+  decorator: Decorator,
+}): string | null {
+  const { decorator, controllerClass, method, arg } = context
+  const decoratorArgs = decorator.getArguments()
 
-        // If we previously had an @Body() decorator, this can lead to several types of errors (see the big comment above for more informations)
-        if (collected.body?.full) {
-          warn('├───── Detected single @Body() decorator after a full parameter. This is considered a bad practice, avoid it if you can!')
-        } else {
-          debug('├───── Mapping argument to BODY field: {yellow}', fieldName)
+  if (decoratorArgs.length > 1) {
+    panic(
+        `${controllerClass.getName()} ${method.getName()} ${decorator.getName()}() ${arg.getName()} argument decorator has multiple parameters`
+      )
+  } else if (decoratorArgs.length === 0) {
+    return null
+  }
 
-          // Update the BODY type by adding the current field to it
+  const decoratorArg = decoratorArgs[0]
 
-          if (fieldName in {}) {
-            return new Error(
-              format(`Detected @Body() field whose name {yellow} collides with a JavaScript's native object property`, fieldName)
-            )
-          }
+  if (!Node.isStringLiteral(decoratorArg)) {
+    panic('The argument provided to the decorator is not a string literal:\n>>> {cyan}', arg.getText())
+  }
 
-          collected.body ??= { full: false, fields: new Map() }
+  const paramKey = decoratorArg.getLiteralText()
+  if (paramKey in {}) {
+    panicWithContext(
+      `${decorator.getName()}('${paramKey}') param name collides with JavaScript native object property`, 
+      context
+    )
+  }
 
-          collected.body.fields.set(fieldName, typ)
-        }
+  return paramKey
+}
+
+export function mergeDecoratedArgs(decoratedArgs: DecoratedArg[]): SdkMethodParam {
+  let genericParam: SdkMethodParam | null = null
+  let paramMap: SdkMethodParamMap = {}
+
+  for (const decoratedArg of decoratedArgs) {
+    const { argParamKey, decoratorType, arg, context } = decoratedArg
+    const resolvedType = resolveTypeDependencies(arg.getType(), context.filePath, context.absoluteSrcPath)
+
+    if (argParamKey) {
+      if (paramMap[argParamKey]) {
+        panicWithContext(`${decoratorType}('${argParamKey}') used twice in controller method`, decoratedArg.context)
       }
+
+      paramMap[argParamKey] = resolvedType
+    } else  {
+      if (genericParam) {
+        panicWithContext(`${decoratorType}() used twice in controller method`, decoratedArg.context)
+      }
+
+      genericParam = resolvedType
     }
   }
 
-  // Success!
-  return collected
+  const hasArgsByKey = Object.keys(paramMap).length > 0
+
+  if (genericParam && hasArgsByKey) {
+    panicWithContext(`Cannot mix generic and specific ${decoratedArgs[0].decoratorType}()`, decoratedArgs[0].context)
+  }
+
+  return hasArgsByKey ? paramMap : genericParam
+}
+
+const panicWithContext = (message: string, context: MethodContext) => {
+  const { controllerClass, httpMethod, method, filePath } = context
+  const ctx = {
+    controller: controllerClass.getName(),
+    method: method.getName(),
+    httpMethod,
+    filePath,
+  }
+  panic(`${message}\n${JSON.stringify(ctx, null, 2)}`)
 }
