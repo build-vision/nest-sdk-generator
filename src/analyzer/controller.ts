@@ -3,8 +3,11 @@
  */
 
 import * as path from 'path'
+
 import { Node, Project } from 'ts-morph'
+
 import { debug, warn } from '../logging'
+
 import { analyzeMethods, SdkMethod } from './methods'
 
 /**
@@ -25,14 +28,14 @@ function camelcase(str: string): string {
  * SDK interface of a controller
  */
 export interface SdkController {
-  /** Original controller file's path */
-  readonly path: string
   /** Name of the controller's class, camel cased */
   readonly camelClassName: string
-  /** Name the controller is registered under */
-  readonly registrationName: string
   /** Controller's methods */
   readonly methods: SdkMethod[]
+  /** Original controller file's path */
+  readonly path: string
+  /** Name the controller is registered under */
+  readonly registrationName: string
 }
 
 /**

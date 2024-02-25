@@ -1,4 +1,5 @@
 import * as chalk from 'chalk'
+
 import { config } from './config'
 
 export function format(message: string, ...params: Array<number | string>): string {
@@ -22,7 +23,7 @@ export function unreachable(message: string, ...params: Array<number | string>):
 
 export function warn(message: string, ...params: Array<number | string>) {
   if (config.verbose) {
-  console.warn(chalk.yellow(format(message, ...params)))
+    console.warn(chalk.yellow(format(message, ...params)))
   }
 }
 

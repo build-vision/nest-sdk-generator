@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import * as path from 'path'
+
 import { analyzerCli } from './analyzer'
 import { config, configPath } from './config'
 import generatorCli from './generator'
@@ -11,20 +12,9 @@ async function main() {
 
   process.chdir(path.dirname(path.resolve(configPath)))
 
-  switch (process.argv[3]) {
-    case '--analyze':
-      await analyzerCli(config)
-      break
-
-    case '--generate':
-    case undefined:
-      const sdkContent = await analyzerCli(config)
-      await generatorCli(config, sdkContent)
-      break
-
-    default:
-      console.error('ERROR: Unknown action provided (must be either "--analyze" or "--generate")')
-      process.exit(1)
+  const sdkContent = await analyzerCli(config)
+  if (process.argv[3] === '--generate') {
+    await generatorCli(config, sdkContent)
   }
 
   println('{green}', '@ Done in ' + ((Date.now() - started) / 1000).toFixed(2) + 's')

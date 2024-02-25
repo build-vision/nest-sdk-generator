@@ -3,7 +3,9 @@
  */
 
 import * as path from 'path'
+
 import { ts, Type } from 'ts-morph'
+
 import { unreachable } from '../logging'
 
 /**
@@ -15,15 +17,6 @@ export const IMPORTED_TYPE_REGEX = /\bimport\(['"]([^'"]+)['"]\)\.([a-zA-Z0-9_]+
  * Type with resolved level 1 dependencies (does not look for dependencies' own dependencies!)
  */
 export interface ResolvedTypeDeps {
-  /** The original raw type, with import("...") expressions */
-  readonly rawType: string
-
-  /** The resolved type, without imports */
-  readonly resolvedType: string
-
-  /** File from which the type originates */
-  readonly relativeFilePath: string
-
   /**
    * The type dependencies used by the resolved type
    * A collection of scripts' relative paths mapped with the list of types imported from them
@@ -35,6 +28,15 @@ export interface ResolvedTypeDeps {
    * They may be either local types (declared in the same file than the one analyzed) or globally-defined types
    */
   readonly localTypes: string[]
+
+  /** The original raw type, with import("...") expressions */
+  readonly rawType: string
+
+  /** File from which the type originates */
+  readonly relativeFilePath: string
+
+  /** The resolved type, without imports */
+  readonly resolvedType: string
 }
 
 /**
@@ -55,8 +57,8 @@ export function resolveTypeDependencies(type: Type<ts.Type>, relativeFilePath: s
     )
   }
 
-  let dependencies: ResolvedTypeDeps['dependencies'] = new Map()
-  let localTypes: ResolvedTypeDeps['localTypes'] = []
+  const dependencies: ResolvedTypeDeps['dependencies'] = new Map()
+  const localTypes: ResolvedTypeDeps['localTypes'] = []
 
   /** Resolved type (without import statements) */
   const resolvedType: ResolvedTypeDeps['resolvedType'] = rawType.replace(IMPORTED_TYPE_REGEX, (_, matchedFilePath, type) => {

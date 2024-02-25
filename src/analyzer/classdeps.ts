@@ -3,8 +3,11 @@
  */
 
 import * as path from 'path'
+
 import { ClassDeclaration, InterfaceDeclaration, ts, Type } from 'ts-morph'
+
 import { unreachable } from '../logging'
+
 import { ResolvedTypeDeps, resolveTypeDependencies } from './typedeps'
 
 export function analyzeClassDeps(

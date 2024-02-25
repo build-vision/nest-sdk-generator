@@ -4,10 +4,12 @@
 
 import * as fs from 'fs'
 import * as path from 'path'
+
 import { SdkContent } from '../analyzer'
 import { normalizeExternalFilePath } from '../analyzer/typedeps'
 import { Config } from '../config'
 import { debug, panic, println } from '../logging'
+
 import { generateSdkModules } from './genmodules'
 import { generateSdkTypeFiles } from './gentypes'
 import { findPrettierConfig, prettify } from './prettier'
@@ -40,7 +42,7 @@ export default async function generatorCli(config: Config, sdkContent: SdkConten
 
   const prettierConfig = prettifyOutput ? findPrettierConfig(config) : {}
 
-  const writeScriptTo = (parentDir: null | string, file: string, utf8Content: string) => {
+  const writeScriptTo = async (parentDir: null | string, file: string, utf8Content: string) => {
     if (file.endsWith('.ts')) {
       utf8Content =
         '/// Auto-generated file (nest-sdk-generator)\n' +
@@ -52,23 +54,23 @@ export default async function generatorCli(config: Config, sdkContent: SdkConten
 
     const fullPath = path.resolve(output, parentDir ?? '', file)
     fs.mkdirSync(path.dirname(fullPath), { recursive: true })
-    fs.writeFileSync(
-      fullPath,
-      prettifyOutput ? prettify(utf8Content, prettierConfig, file.endsWith('.json') ? 'json' : 'typescript') : utf8Content,
-      'utf8'
-    )
+
+    const fileContent = prettifyOutput
+      ? await prettify(utf8Content, prettierConfig, file.endsWith('.json') ? 'json' : 'typescript')
+      : utf8Content
+    fs.writeFileSync(fullPath, fileContent, 'utf8')
   }
 
   println('> Generating type files...')
 
   for (const [file, content] of generateSdkTypeFiles(sdkContent.types)) {
-    writeScriptTo('_types', normalizeExternalFilePath(file), content)
+    await writeScriptTo('_types', normalizeExternalFilePath(file), content)
   }
 
   println('> Generating modules...')
 
   for (const [file, content] of generateSdkModules(sdkContent.modules)) {
-    writeScriptTo(null, file, content)
+    await writeScriptTo(null, file, content)
   }
 
   const sdkInterfacePath = path.resolve(process.cwd(), config.sdkInterfacePath)
@@ -78,7 +80,7 @@ export default async function generatorCli(config: Config, sdkContent: SdkConten
     .replace(/\\/g, '/')
     .replace(/\.([jt]sx?)$/, '')
 
-  writeScriptTo(null, 'central.ts', `export { request } from "${relativeSdkInterfacePath}"`)
+  await writeScriptTo(null, 'central.ts', `export { request } from "${relativeSdkInterfacePath}"`)
 
   if (!fs.existsSync(sdkInterfacePath) && config.generateDefaultSdkInterface !== false) {
     println('├─ Generating default SDK interface...')

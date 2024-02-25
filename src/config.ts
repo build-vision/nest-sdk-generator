@@ -1,29 +1,21 @@
-import chalk = require('chalk')
 import * as fs from 'fs'
 import * as path from 'path'
+
+import chalk = require('chalk')
 
 /**
  * The configuration file's content
  * For details on what these options do, see the project's README
  */
 export interface Config {
-  /** Enable verbose mode */
-  readonly verbose?: boolean
-
-  /** Disable colored output */
-  readonly noColor?: boolean
-
   /** Path to the API's source directory */
   readonly apiInputPath: string
 
-  /** Path to generate the SDK at */
-  readonly sdkOutput: string
+  /** If the SDK interface file does not exist yet, create one automatically (enabled by default) */
+  readonly generateDefaultSdkInterface?: boolean
 
-  /** Path to the SDK interface file */
-  readonly sdkInterfacePath: string
-
-  /** List of magic types */
-  readonly magicTypes?: MagicType[]
+  /** Write generation timestamp in each TypeScript file (enabled by default) */
+  readonly generateTimestamps?: boolean
 
   /** Show a JSON output */
   readonly jsonOutput?: string
@@ -31,23 +23,32 @@ export interface Config {
   /** Prettify the JSON output */
   readonly jsonPrettyOutput?: boolean
 
-  /** Prettify the generated files (enabled by default) */
-  readonly prettify?: boolean
+  /** List of magic types */
+  readonly magicTypes?: MagicType[]
 
-  /** Path to Prettier's configuration file */
-  readonly prettierConfig?: string
-
-  /** Path to custom tsconfig file */
-  readonly tsconfigFile?: string
+  /** Disable colored output */
+  readonly noColor?: boolean
 
   /** If the output directory already exists, overwrite it (enabled by default) */
   readonly overwriteOldOutputDir?: boolean
 
-  /** If the SDK interface file does not exist yet, create one automatically (enabled by default) */
-  readonly generateDefaultSdkInterface?: boolean
+  /** Path to Prettier's configuration file */
+  readonly prettierConfig?: string
 
-  /** Write generation timestamp in each TypeScript file (enabled by default) */
-  readonly generateTimestamps?: boolean
+  /** Prettify the generated files (enabled by default) */
+  readonly prettify?: boolean
+
+  /** Path to the SDK interface file */
+  readonly sdkInterfacePath: string
+
+  /** Path to generate the SDK at */
+  readonly sdkOutput: string
+
+  /** Path to custom tsconfig file */
+  readonly tsconfigFile?: string
+
+  /** Enable verbose mode */
+  readonly verbose?: boolean
 }
 
 /**
@@ -55,8 +56,8 @@ export interface Config {
  */
 export interface MagicType {
   readonly nodeModuleFilePath: string
-  readonly typeName: string
   readonly placeholderContent: string
+  readonly typeName: string
 }
 
 /**

@@ -3,6 +3,7 @@
  */
 
 import * as path from 'path'
+
 import { TypesExtractorContent } from '../analyzer/extractor'
 import { normalizeExternalFilePath } from '../analyzer/typedeps'
 

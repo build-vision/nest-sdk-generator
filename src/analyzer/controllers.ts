@@ -4,10 +4,13 @@
 
 import * as os from 'os'
 import * as path from 'path'
+
 import { Project } from 'ts-morph'
+
 import { debug, format, panic, warn } from '../logging'
 import { findFileAbove } from '../utils'
-import { SdkController, analyzeController } from './controller'
+
+import { analyzeController, SdkController } from './controller'
 import { getModuleName } from './module'
 
 export type SdkModules = Map<string, Map<string, SdkController>>

@@ -4,20 +4,25 @@
 
 import { blue } from 'chalk'
 import { ClassDeclaration, MethodDeclaration, Node } from 'ts-morph'
+
 import { debug, format } from '../logging'
-import { SdkMethodParams, extractParams } from './params'
-import { Route, analyzeUri, debugUri } from './route'
+
+import { extractParams, SdkMethodParams } from './params'
+import { analyzeUri, debugUri, Route } from './route'
 import { ResolvedTypeDeps, resolveTypeDependencies } from './typedeps'
 
 /**
  * SDK interface for a single controller's method
  */
 export interface SdkMethod {
+  /** Method's HTTP method (e.g. GET / POST) */
+  readonly httpMethod: SdkHttpMethod
+
   /** Method's name */
   readonly name: string
 
-  /** Method's HTTP method (e.g. GET / POST) */
-  readonly httpMethod: SdkHttpMethod
+  /** Method's parameters */
+  readonly params: SdkMethodParams
 
   /** Method's return type with resolved dependencies */
   readonly returnType: ResolvedTypeDeps
@@ -27,20 +32,17 @@ export interface SdkMethod {
 
   /** Method's URI path */
   readonly uriPath: string
-
-  /** Method's parameters */
-  readonly params: SdkMethodParams
 }
 
 /**
  * HTTP method of a controller's method
  */
 export enum SdkHttpMethod {
+  Delete = 'DELETE',
   Get = 'GET',
+  Patch = 'PATCH',
   Post = 'POST',
   Put = 'PUT',
-  Patch = 'PATCH',
-  Delete = 'DELETE',
 }
 
 /**
@@ -85,8 +87,7 @@ export function analyzeMethods(
     // Get the HTTP decorator
     const dec = decorators[0]
 
-    // We need to put a '@ts-ignore' here because TypeScript doesn't like indexing an enumeration with a string key, although this works fine
-    // @ts-ignore
+    // @ts-expect-error TypeScript doesn't like indexing an enumeration with a string key, although this works fine
     const httpMethod = SdkHttpMethod[dec.getName()]
 
     debug('├─── Detected HTTP method: {magentaBright}', httpMethod.toLocaleUpperCase())
@@ -141,7 +142,7 @@ export function analyzeMethods(
 
     // Analyze the method's arguments
     debug('├─── Analyzing arguments...')
-    const params = extractParams({controllerClass, httpMethod, route, method, filePath, absoluteSrcPath})
+    const params = extractParams({ controllerClass, httpMethod, route, method, filePath, absoluteSrcPath })
 
     // Get the method's return type
     debug('├─── Resolving return type...')

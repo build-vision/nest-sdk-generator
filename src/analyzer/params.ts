@@ -3,37 +3,38 @@
  */
 
 import { ClassDeclaration, Decorator, MethodDeclaration, Node, ParameterDeclaration, Type } from 'ts-morph'
+
 import { debug, panic } from '../logging'
+
 import { SdkHttpMethod } from './methods'
-import { Route, paramsFromRoute } from './route'
+import { paramsFromRoute, Route } from './route'
 import { ResolvedTypeDeps, resolveTypeDependencies } from './typedeps'
 
 /**
  * Type of a parameter that must be passed to an SDK method: Body, Query or Route Param
  * Supports accessing parameters individually by key or as a whole object
- * 
+ *
  * EXAMPLE
- * 
+ *
  * Controller Method:
- * 
+ *
  * getStuff(@Query('email') email: string, @Query('companyId'): CompanyId)
- * 
+ *
  * SDK Method Param:
  * { email: string, companyId: CompanyId }
- * 
+ *
  * OR
- * 
+ *
  * Controller Method:
  * type EmailAndCompanyId = { email: string, companyId: CompanyId }
  * getStuff(@Query(): EmailAndCompanyId)
- * 
+ *
  * SDK Method Param:
  * EmailAndCompanyId
  */
 
-
-export type SdkMethodParam =  SdkMethodParamMap | ResolvedTypeDeps | null;
-export type SdkMethodParamMap = { [key: string]: ResolvedTypeDeps };
+export type SdkMethodParam = SdkMethodParamMap | ResolvedTypeDeps | null
+export type SdkMethodParamMap = { [key: string]: ResolvedTypeDeps }
 
 export const isParamResolvedType = (param: SdkMethodParam): param is ResolvedTypeDeps => {
   if (param === null) {
@@ -56,35 +57,34 @@ export const getParamResolvedTypes = (param: SdkMethodParam): ResolvedTypeDeps[]
  * SDK interface for a controller's method's parameters
  */
 export interface SdkMethodParams {
-  routeParams: SdkMethodParam,
-  queryParams: SdkMethodParam,
-  bodyParams:  SdkMethodParam,
-  context: MethodContext,
+  bodyParams: SdkMethodParam
+  context: MethodContext
+  queryParams: SdkMethodParam
+  routeParams: SdkMethodParam
 }
 
 export type MethodContext = {
-  controllerClass: ClassDeclaration,
-  method: MethodDeclaration,
-  httpMethod: SdkHttpMethod,
-  route: Route,
-  filePath: string,
-  absoluteSrcPath: string,
+  absoluteSrcPath: string
+  controllerClass: ClassDeclaration
+  filePath: string
+  httpMethod: SdkHttpMethod
+  method: MethodDeclaration
+  route: Route
 }
 
 export enum ArgDecorator {
+  Body = 'Body',
   Param = 'Param',
   Query = 'Query',
-  Body = 'Body',
 }
 
 export type DecoratedArg = {
-  arg: ParameterDeclaration,
-  argParamKey: string | null,
-  decorator: Decorator,
-  decoratorType: ArgDecorator,
-  context: MethodContext,
+  arg: ParameterDeclaration
+  argParamKey: string | null
+  context: MethodContext
+  decorator: Decorator
+  decoratorType: ArgDecorator
 }
-
 
 /**
  * Generate a SDK interface for a controller's method's parameters
@@ -95,11 +95,9 @@ export type DecoratedArg = {
  * @param absoluteSrcPath Absolute path to the source directory
  * @returns A SDK interface for the method's parameters
  */
-export function extractParams(
-  context: MethodContext
-): SdkMethodParams {
-  const { route, filePath } = context
-  const { Param, Query, Body } = extractDecoratedArgs(context)
+export function extractParams(context: MethodContext): SdkMethodParams {
+  const { route } = context
+  const { Body, Param, Query } = extractDecoratedArgs(context)
   const resolvedParams: SdkMethodParams = {
     routeParams: mergeDecoratedArgs(Param),
     queryParams: mergeDecoratedArgs(Query),
@@ -112,32 +110,35 @@ export function extractParams(
    */
   const { routeParams } = resolvedParams
   if (routeParams) {
-    const allowedRouteParams = new Set(paramsFromRoute(route)) 
-    const usedRouteParams = routeParams instanceof Type ? 
-      // If routeParams was resolved to a single type, assume there's only one decorated argument
-      Param[0].arg.getType().getProperties().map((prop) => prop.getName()) :
-      // If routeParams was resolved to a map, assume the keys are the route params
-      Object.keys(routeParams)
-    
+    const allowedRouteParams = new Set(paramsFromRoute(route))
+    const usedRouteParams =
+      routeParams instanceof Type
+        ? // If routeParams was resolved to a single type, assume there's only one decorated argument
+          Param[0].arg
+            .getType()
+            .getProperties()
+            .map((prop) => prop.getName())
+        : // If routeParams was resolved to a map, assume the keys are the route params
+          Object.keys(routeParams)
+
     for (const usedParam of usedRouteParams) {
       if (!allowedRouteParams.has(usedParam)) {
-          panicWithContext(`Route param ${usedParam} does not appear in route URL`, context)
-        }
+        panicWithContext(`Route param ${usedParam} does not appear in route URL`, context)
+      }
     }
   }
 
-  
   return resolvedParams
 }
 
 export function extractDecoratedArgs(context: MethodContext): Record<ArgDecorator, DecoratedArg[]> {
-    const decoratedArgs = {
-      [ArgDecorator.Param]: [] as DecoratedArg[],
-      [ArgDecorator.Query]: [] as DecoratedArg[],
-      [ArgDecorator.Body]: [] as DecoratedArg[],
-    }
+  const decoratedArgs = {
+    [ArgDecorator.Param]: [] as DecoratedArg[],
+    [ArgDecorator.Query]: [] as DecoratedArg[],
+    [ArgDecorator.Body]: [] as DecoratedArg[],
+  }
 
-  const { method, filePath, controllerClass } = context
+  const { controllerClass, method } = context
   const args = method.getParameters()
 
   for (const arg of args) {
@@ -181,17 +182,19 @@ export function extractDecoratedArgs(context: MethodContext): Record<ArgDecorato
   return decoratedArgs
 }
 
-export function extractArgParamKey(context: MethodContext & {  
-  arg: ParameterDeclaration,
-  decorator: Decorator,
-}): string | null {
-  const { decorator, controllerClass, method, arg } = context
+export function extractArgParamKey(
+  context: MethodContext & {
+    arg: ParameterDeclaration
+    decorator: Decorator
+  }
+): string | null {
+  const { arg, controllerClass, decorator, method } = context
   const decoratorArgs = decorator.getArguments()
 
   if (decoratorArgs.length > 1) {
     panic(
-        `${controllerClass.getName()} ${method.getName()} ${decorator.getName()}() ${arg.getName()} argument decorator has multiple parameters`
-      )
+      `${controllerClass.getName()} ${method.getName()} ${decorator.getName()}() ${arg.getName()} argument decorator has multiple parameters`
+    )
   } else if (decoratorArgs.length === 0) {
     return null
   }
@@ -204,10 +207,7 @@ export function extractArgParamKey(context: MethodContext & {
 
   const paramKey = decoratorArg.getLiteralText()
   if (paramKey in {}) {
-    panicWithContext(
-      `${decorator.getName()}('${paramKey}') param name collides with JavaScript native object property`, 
-      context
-    )
+    panicWithContext(`${decorator.getName()}('${paramKey}') param name collides with JavaScript native object property`, context)
   }
 
   return paramKey
@@ -215,10 +215,10 @@ export function extractArgParamKey(context: MethodContext & {
 
 export function mergeDecoratedArgs(decoratedArgs: DecoratedArg[]): SdkMethodParam {
   let genericParam: SdkMethodParam | null = null
-  let paramMap: SdkMethodParamMap = {}
+  const paramMap: SdkMethodParamMap = {}
 
   for (const decoratedArg of decoratedArgs) {
-    const { argParamKey, decoratorType, arg, context } = decoratedArg
+    const { arg, argParamKey, context, decoratorType } = decoratedArg
     const resolvedType = resolveTypeDependencies(arg.getType(), context.filePath, context.absoluteSrcPath)
 
     if (argParamKey) {
@@ -227,7 +227,7 @@ export function mergeDecoratedArgs(decoratedArgs: DecoratedArg[]): SdkMethodPara
       }
 
       paramMap[argParamKey] = resolvedType
-    } else  {
+    } else {
       if (genericParam) {
         panicWithContext(`${decoratorType}() used twice in controller method`, decoratedArg.context)
       }
@@ -246,7 +246,7 @@ export function mergeDecoratedArgs(decoratedArgs: DecoratedArg[]): SdkMethodPara
 }
 
 const panicWithContext = (message: string, context: MethodContext) => {
-  const { controllerClass, httpMethod, method, filePath } = context
+  const { controllerClass, filePath, httpMethod, method } = context
   const ctx = {
     controller: controllerClass.getName(),
     method: method.getName(),

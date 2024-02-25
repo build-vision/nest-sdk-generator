@@ -3,7 +3,9 @@
  */
 
 import * as path from 'path'
+
 import { Node, Project } from 'ts-morph'
+
 import { format, panic } from '../logging'
 
 /**
@@ -36,16 +38,8 @@ export function getModuleName(project: Project, modulePath: string, sourcePath: 
   const moduleDecorator = decorators.find((dec) => dec.getName() === 'Module')
 
   if (!moduleDecorator) {
-    panic(
-      format(
-        `Module class {yellow} is missing {yellow} decorator\nModule path is: {yellow}`,
-        moduleName,
-        '@Module',
-        modulePath
-      )
-    )
+    panic(format(`Module class {yellow} is missing {yellow} decorator\nModule path is: {yellow}`, moduleName, '@Module', modulePath))
   }
-
 
   return moduleName.substr(0, 1).toLocaleLowerCase() + moduleName.substr(1)
 }

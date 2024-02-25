@@ -51,6 +51,7 @@ export function analyzeUri(uriPath: string): Route | Error {
     if (part === '') continue
 
     // Ensure there is no generic character in the path as we don't support them
+    // eslint-disable-next-line no-useless-escape
     const genericErr = _findInvalid(part, /[\*\+\?]/)
 
     if (genericErr) {
@@ -91,7 +92,7 @@ export function analyzeUri(uriPath: string): Route | Error {
  * @param route
  */
 export function routePartIsParam(part: RoutePart): part is { readonly param: string } {
-  return "param" in part
+  return 'param' in part
 }
 
 export function paramsFromRoute(route: Route): string[] {
@@ -119,11 +120,12 @@ export function debugUri(route: Route, color: (str: string) => string): string {
  * @param params
  */
 export function resolveRoute(route: Route, params: { [name: string]: string }): string | Error {
-  let uri: string[] = []
+  const uri: string[] = []
 
   for (const part of route.parts) {
     if ('segment' in part) {
       uri.push(part.segment)
+      // eslint-disable-next-line no-prototype-builtins
     } else if (!params.hasOwnProperty(part.param)) {
       return new Error('Missing route parameter ' + part.param)
     } else {
@@ -140,7 +142,7 @@ export function resolveRoute(route: Route, params: { [name: string]: string }): 
  * @param paramsProvider
  */
 export function resolveRouteWith(route: Route, paramsProvider: (param: string) => string | null): string | Error {
-  let uri: string[] = []
+  const uri: string[] = []
 
   for (const part of route.parts) {
     if ('segment' in part) {

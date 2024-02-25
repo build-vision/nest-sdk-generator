@@ -51,8 +51,8 @@ export function findFilesRecursive(pattern: string | RegExp, dir: string, relati
         return fs.lstatSync(fullPath).isDirectory()
           ? find(pattern, rootDir, fullPath)
           : (typeof pattern === 'string' ? item === pattern : pattern.exec(item))
-          ? [relative ? path.relative(rootDir, fullPath) : path.resolve(cwd, currDir, item)]
-          : []
+            ? [relative ? path.relative(rootDir, fullPath) : path.resolve(cwd, currDir, item)]
+            : []
       })
       .flat()
   }

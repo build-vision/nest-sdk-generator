@@ -25,10 +25,10 @@ export function generateSdkModules(modules: SdkModules): Map<string, string> {
   // Iterate over each module
   for (const [moduleName, controllers] of modules) {
     // Iterate over each of the module's controllers
-    for (const [controllerName, controller] of controllers) {
+    for (const [_, controller] of controllers) {
       genFiles.set(controller.camelClassName + '.ts', generateController(moduleName, controller))
       indexContent.push(`export { default as ${controller.camelClassName} } from "./${controller.camelClassName}";`)
-    }    
+    }
   }
 
   genFiles.set('index.ts', indexContent.join('\n'))
@@ -53,7 +53,7 @@ export function generateController(moduleName: string, controller: SdkController
 
   // Iterate over each controller
   for (const method of controller.methods.values()) {
-    const { routeParams, queryParams, bodyParams } = method.params
+    const { bodyParams, queryParams, routeParams } = method.params
 
     depsToImport.push(method.returnType)
     depsToImport.push(...getParamResolvedTypes(routeParams))
@@ -99,10 +99,10 @@ export function generateController(moduleName: string, controller: SdkController
       return acc
     },
     { mutations: [] as SdkMethod[], queries: [] as SdkMethod[] }
-  ); 
+  )
 
   out.push(`  queries: {`)
-  
+
   for (const method of queries) {
     out.push(generateSdkMethod(method, controller))
   }
@@ -110,7 +110,7 @@ export function generateController(moduleName: string, controller: SdkController
   out.push('  },')
 
   out.push(`  mutations: {`)
-  
+
   for (const method of mutations) {
     out.push(generateSdkMethod(method, controller))
   }
@@ -119,14 +119,11 @@ export function generateController(moduleName: string, controller: SdkController
 
   out.push('')
   out.push('};')
-  return out.join('\n');
+  return out.join('\n')
 }
 
 export function generateSdkMethod(method: SdkMethod, controller: SdkController): string {
-  const out = [];
-  const ret = method.returnType.resolvedType
-  const promised = ret.startsWith('Promise<') ? ret : `Promise<${ret}>`
-  const paramsType = generateSdkMethodParams(method)
+  const out = []
 
   out.push('')
   out.push(`  // ${controller.camelClassName}.${method.name}`)
@@ -138,16 +135,16 @@ export function generateSdkMethod(method: SdkMethod, controller: SdkController):
   return out.join('\n')
 }
 
-export function generateSdkMethodSignature(method: SdkMethod, prefix = '    '): string {
+export function generateSdkMethodSignature(method: SdkMethod): string {
   const ret = method.returnType.resolvedType
   const promised = ret.startsWith('Promise<') ? ret : `Promise<${ret}>`
   const paramsType = generateSdkMethodParams(method)
 
-  return `${prefix}${method.name}(${paramsType}): ${promised}`
+  return `${method.name}(${paramsType}): ${promised}`
 }
 
 export function generateSdkMethodParams(method: SdkMethod): string {
-  const { params, httpMethod, name  } = method;
+  const { httpMethod, name, params } = method
 
   if (httpMethod === SdkHttpMethod.Get && params.bodyParams) {
     panic(`${httpMethod} ${name} should not have Body params`)
@@ -156,7 +153,7 @@ export function generateSdkMethodParams(method: SdkMethod): string {
     panic(`${httpMethod} ${name} should not have Query params`)
   }
 
-  const inputTypes = [];
+  const inputTypes = []
 
   if (params.routeParams) {
     inputTypes.push(methodParamsToString(params.routeParams))
@@ -180,9 +177,9 @@ export function generateSdkMethodParams(method: SdkMethod): string {
  * @param method
  * @returns
  */
-export function generateSdkMethodBody(method: SdkMethod, prefix = '    '): string {
+export function generateSdkMethodBody(method: SdkMethod): string {
   const output = []
-  const { route, httpMethod } = method
+  const { httpMethod, route } = method
   const routeParams = paramsFromRoute(route)
   const resolvedRoute = resolveRouteWith(route, (param) => '${' + param + '}')
   const hasAnyParams = method.params.routeParams || method.params.queryParams || method.params.bodyParams
@@ -198,10 +195,9 @@ export function generateSdkMethodBody(method: SdkMethod, prefix = '    '): strin
   }
 
   const isGet = httpMethod === SdkHttpMethod.Get
-  const body = isGet || !hasAnyParams ? "null" : "rest"
-  const query = isGet && hasAnyParams ? "rest" : "{}" 
+  const body = isGet || !hasAnyParams ? 'null' : 'rest'
+  const query = isGet && hasAnyParams ? 'rest' : '{}'
 
-  
   output.push(`return request('${httpMethod}', \`${resolvedRoute}\`, ${body}, ${query})`)
   return output.join('\n')
 }
@@ -215,10 +211,10 @@ export function methodParamsToString(params: SdkMethodParam): string {
     return params.resolvedType
   }
 
-  const output = ["{"]
+  const output = ['{']
   for (const [name, type] of Object.entries(params)) {
     output.push(`${name}: ${type.resolvedType},`)
   }
-  output.push("}")
-  return output.join("\n")
+  output.push('}')
+  return output.join('\n')
 }

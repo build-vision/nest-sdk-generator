@@ -4,9 +4,12 @@
 
 import * as fs from 'fs'
 import * as path from 'path'
+
 import { Project } from 'ts-morph'
+
 import { Config } from '../config'
 import { debug, panic } from '../logging'
+
 import { builtinMagicTypes } from './builtin'
 import { analyzeControllers, SdkModules } from './controllers'
 import { flattenSdkResolvedTypes, locateTypesFile, TypesExtractor, TypesExtractorContent } from './extractor'
@@ -17,9 +20,9 @@ export interface SdkContent {
 }
 
 export interface MagicType {
+  readonly content: string
   readonly package: string
   readonly typeName: string
-  readonly content: string
 }
 
 export async function analyzerCli(config: Config): Promise<SdkContent> {
@@ -69,7 +72,7 @@ export async function analyzerCli(config: Config): Promise<SdkContent> {
   debug('\nAdding them to the source project...')
 
   let progressByTenth = 0
-  let strLen = sourceTSFiles.length.toString().length
+  const strLen = sourceTSFiles.length.toString().length
 
   const hasProgress = (filesTreated: number) => filesTreated / sourceTSFiles.length >= (progressByTenth + 1) / 10
 

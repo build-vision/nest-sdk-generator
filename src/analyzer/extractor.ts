@@ -3,13 +3,16 @@
  */
 
 import * as path from 'path'
+
 import { Node, Project, SourceFile } from 'ts-morph'
+
 import { MagicType } from '../config'
 import { debug, format, panic, unreachable, warn } from '../logging'
+
 import { analyzeClassDeps } from './classdeps'
 import { SdkModules } from './controllers'
 import { getParamResolvedTypes } from './params'
-import { ResolvedTypeDeps, getImportResolvedType, resolveTypeDependencies } from './typedeps'
+import { getImportResolvedType, ResolvedTypeDeps, resolveTypeDependencies } from './typedeps'
 
 /** Valid extensions for TypeScript module files */
 export const MODULE_EXTENSIONS = ['.ts', '.d.ts', '.tsx', '.d.tsx', '.js', '.jsx']
@@ -18,8 +21,8 @@ export const MODULE_EXTENSIONS = ['.ts', '.d.ts', '.tsx', '.d.tsx', '.js', '.jsx
  * Location of an imported type
  */
 export interface TypeLocation {
-  readonly typename: string
   readonly relativePathNoExt: string
+  readonly typename: string
 }
 
 /**
@@ -36,11 +39,11 @@ export interface ExtractedType extends TypeLocationWithExt {
   /** Type's declaration */
   readonly content: string
 
-  /** Type parameters (e.g. <T>) */
-  readonly typeParams: string[]
-
   /** Types this one depends on */
   readonly dependencies: TypeLocationWithExt[]
+
+  /** Type parameters (e.g. <T>) */
+  readonly typeParams: string[]
 }
 
 // Maps files to records mapping themselves type names to their declaration code
@@ -463,7 +466,7 @@ export function flattenSdkResolvedTypes(sdkModules: SdkModules): ResolvedTypeDep
   for (const module of sdkModules.values()) {
     for (const controller of module.values()) {
       for (const method of controller.methods.values()) {
-        const { routeParams, queryParams, bodyParams } = method.params
+        const { bodyParams, queryParams, routeParams } = method.params
 
         flattened.push(method.returnType)
         flattened.push(...getParamResolvedTypes(routeParams))

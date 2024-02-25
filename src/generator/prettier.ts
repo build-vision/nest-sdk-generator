@@ -3,7 +3,9 @@
  */
 
 import * as fs from 'fs'
+
 import * as prettier from 'prettier'
+
 import { Config } from '../config'
 import { panic } from '../logging'
 import { findFileAbove } from '../utils'
@@ -12,7 +14,7 @@ import { findFileAbove } from '../utils'
  * Find a .prettierrc configuration file in the current directory or above
  */
 export function findPrettierConfig(config: Config): object {
-  let prettierConfigPath = config.prettierConfig ?? findFileAbove('.prettierrc', config.sdkOutput)
+  const prettierConfigPath = config.prettierConfig ?? findFileAbove('.prettierrc', config.sdkOutput)
 
   if (!prettierConfigPath) {
     return {}
@@ -38,7 +40,7 @@ export function findPrettierConfig(config: Config): object {
  * @param parser
  * @returns
  */
-export function prettify(source: string, config: object, parser: 'typescript' | 'json'): string {
+export function prettify(source: string, config: object, parser: 'typescript' | 'json'): Promise<string> {
   return prettier.format(source, {
     parser,
     ...config,
