@@ -41,5 +41,5 @@ export function getModuleName(project: Project, modulePath: string, sourcePath: 
     panic(format(`Module class {yellow} is missing {yellow} decorator\nModule path is: {yellow}`, moduleName, '@Module', modulePath))
   }
 
-  return moduleName.substr(0, 1).toLocaleLowerCase() + moduleName.substr(1)
+  return moduleName
 }

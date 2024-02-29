@@ -11,6 +11,17 @@ export interface Config {
   /** Path to the API's source directory */
   readonly apiInputPath: string
 
+  readonly controllerOutput?: {
+    exportName?: {
+      addSuffix?: string
+      removeSuffix?: string
+    }
+    fileName?: {
+      addSuffix?: string
+      removeSuffix?: string
+    }
+  }
+
   /** If the SDK interface file does not exist yet, create one automatically (enabled by default) */
   readonly generateDefaultSdkInterface?: boolean
 
@@ -42,8 +53,7 @@ export interface Config {
   readonly sdkInterfacePath: string
 
   /** Path to generate the SDK at */
-  readonly sdkOutput: string
-
+  readonly sdkOutputPath: string
   /** Path to custom tsconfig file */
   readonly tsconfigFile?: string
 

@@ -15,7 +15,7 @@ import { generateSdkTypeFiles } from './gentypes'
 import { findPrettierConfig, prettify } from './prettier'
 import { defaultSdkInterface } from './sdk-interface'
 
-export default async function generateAPIClient(config: Config, sdkContent: SdkContent): Promise<void> {
+export default async function generateRTKQueryEndpoints(config: Config, sdkContent: SdkContent): Promise<void> {
   const prettifyOutput = config.prettify !== false
 
   if (!prettifyOutput) {
@@ -82,7 +82,7 @@ export default async function generateAPIClient(config: Config, sdkContent: SdkC
     .replace(/\\/g, '/')
     .replace(/\.([jt]sx?)$/, '')
 
-  await writeScriptTo(null, 'central.ts', `export { request } from "${relativeSdkInterfacePath}"`)
+  await writeScriptTo(null, 'baseRequest.ts', `export { BaseRequest, type BaseRequestArgs } from "${relativeSdkInterfacePath}"`)
 
   if (!fs.existsSync(sdkInterfacePath) && config.generateDefaultSdkInterface !== false) {
     println('├─ Generating default SDK interface...')

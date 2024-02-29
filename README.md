@@ -152,7 +152,7 @@ First, we must create a configuration file. Let's put it in `front/sdk-generator
 ```json
 {
   "apiInputPath": "../server",
-  "sdkOutput": "sdk",
+  "sdkOutputPath": "sdk",
   "sdkInterfacePath": "sdk-interface.ts"
 }
 ```
@@ -220,7 +220,7 @@ Here is the list of the configuration options you can use in the JSON file:
 | Option name                   | Default         | Value type    | Description                                                                           |
 | ----------------------------- | -------         | ------------- | ------------------------------------------------------------------------------------- |
 | `apiInputPath`                | -               | `string`      | Path to your API's source folder (e.g. `apps/api`)                                    |
-| `sdkOutput`                   | -               | `string`      | Path to generate the SDK at (e.g. `apps/front/src/sdk`)                               |
+| `sdkOutputPath`                   | -               | `string`      | Path to generate the SDK at (e.g. `apps/front/src/sdk`)                               |
 | `sdkInterfacePath`            | -               | `string`      | Path to the SDK interface (e.g. `apps/front/src/sdk-interface.ts`)                    |
 | `magicTypes`                  | `[]`            | `MagicType[]` | Magic types (see below)                                                               |
 | `jsonOutput`                  | `null`          | `string`      | Write the analyzer's output to a file                                                 |

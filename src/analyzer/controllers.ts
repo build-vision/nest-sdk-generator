@@ -114,17 +114,17 @@ export function analyzeControllers(controllers: string[], absoluteSrcPath: strin
       }
 
       // Ensure the each controller has a unique name across modules
-      if (usedControllerNames.has(metadata.camelClassName)) {
+      if (usedControllerNames.has(metadata.className)) {
         panic(
           `Detected two controllers with the same name {yellow}. Second occurrence found in {yellow}`,
           metadata.registrationName,
           metadata.path
         )
       } else {
-        usedControllerNames.add(metadata.camelClassName)
+        usedControllerNames.add(metadata.className)
       }
 
-      moduleSdkInfos.set(metadata.camelClassName, metadata)
+      moduleSdkInfos.set(metadata.className, metadata)
     }
   })
 

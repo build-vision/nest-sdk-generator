@@ -96,13 +96,27 @@ export type DecoratedArg = {
  * @returns A SDK interface for the method's parameters
  */
 export function extractParams(context: MethodContext): SdkMethodParams {
-  const { route } = context
+  const { httpMethod, route } = context
   const { Body, Param, Query } = extractDecoratedArgs(context)
   const resolvedParams: SdkMethodParams = {
     routeParams: mergeDecoratedArgs(Param),
     queryParams: mergeDecoratedArgs(Query),
     bodyParams: mergeDecoratedArgs(Body),
     context,
+  }
+
+  /**
+   * Validate Body Params are not used in GET requests
+   */
+  if (httpMethod === SdkHttpMethod.Get && resolvedParams.bodyParams) {
+    panicWithContext(`${httpMethod} request should not have @Body params, use @Query params instead`, context)
+  }
+
+  /**
+   * Validate Query Params are not used in non-GET requests
+   */
+  if (httpMethod !== SdkHttpMethod.Get && resolvedParams.queryParams) {
+    panicWithContext(`${httpMethod} request should not have @Query params, use @Body params instead`, context)
   }
 
   /**

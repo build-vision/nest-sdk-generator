@@ -13,8 +13,8 @@ import { ResolvedTypeDeps, normalizeExternalFilePath } from '../analyzer/typedep
 import { config } from '../config'
 import { panic } from '../logging'
 
-export function replaceSuffix(value: string, { addSuffix = '', removeSuffix = '' }: { addSuffix?: string; removeSuffix?: string }) {
-  return value.replace(new RegExp(removeSuffix + '$'), '') + addSuffix
+export function replaceSuffix(str: string, { addSuffix = '', removeSuffix = '' }: { addSuffix?: string; removeSuffix?: string }) {
+  return str.replace(new RegExp(removeSuffix + '$'), '') + addSuffix
 }
 
 export function controllerExportName(controller: SdkController): string {
@@ -57,8 +57,13 @@ export function generateSdkModules({
   /** Generated module files */
   const genFiles = new Map<string, string>()
 
-  /** Index file content: Exports all controllers */
-  const indexContent: string[] = []
+  /** Index file content */
+  const indexImports = [
+    'import type { EndpointBuilder } from "@reduxjs/toolkit/query/react";',
+    'import { BaseRequest } from "./baseRequest";',
+  ]
+  const indexExports = []
+  const indexEndpoints = []
 
   // Iterate over each module
   for (const [moduleName, controllers] of modules) {
@@ -66,11 +71,27 @@ export function generateSdkModules({
     for (const [_, controller] of controllers) {
       const { ext: fileExt, name: fileName } = controllerFileName(controller)
       genFiles.set(fileName + fileExt, generateController({ moduleName, controller, inputRelativePath }))
-      indexContent.push(`export { default as ${controllerExportName(controller)} } from "./${fileName}";`)
+
+      const controllerExport = controllerExportName(controller)
+      indexImports.push(`import ${controllerExport} from "./${fileName}";`)
+      indexExports.push(`${controllerExport}`)
+      indexEndpoints.push(`...${controllerExport}.build(builder)`)
     }
   }
 
-  genFiles.set('index.ts', indexContent.join('\n'))
+  const indexEndpointBuilder = [
+    'const build = (builder: EndpointBuilder<typeof BaseRequest, any, any>) => ({',
+    indexEndpoints.join(',\n'),
+    '})',
+  ].join('\n')
+
+  indexExports.push('build')
+
+  const indexDefaultExport = ['export default {', indexExports.join(',\n'), '}'].join('\n')
+
+  const indexContent = [...indexImports, '', indexEndpointBuilder, '', indexDefaultExport, ''].join('\n')
+
+  genFiles.set('index.ts', indexContent)
 
   return genFiles
 }
@@ -92,7 +113,9 @@ export function generateController({
   out.push(`/// Controller: ${controllerName}`)
   out.push(`/// File Path: file:///./${controllerRelativePath({ controller, inputRelativePath })}`)
   out.push('')
-  out.push('import { request } from "./central";')
+  out.push('import type { EndpointBuilder } from "@reduxjs/toolkit/query/react";')
+  out.push('import { BaseRequest } from "./baseRequest";')
+  out.push('import type { BaseRequestArgs } from "./baseRequest";')
 
   const imports = new Map<string, string[]>()
 
@@ -133,7 +156,7 @@ export function generateController({
   }
 
   out.push('')
-  out.push(`export default {`)
+  out.push(`export default class ${controllerExportName(controller)} {`)
 
   const { mutations, queries } = controller.methods.reduce(
     (acc, method) => {
@@ -148,25 +171,69 @@ export function generateController({
     { mutations: [] as SdkMethod[], queries: [] as SdkMethod[] }
   )
 
-  out.push(`  queries: {`)
+  out.push(`static readonly queries = {`)
 
   for (const method of queries) {
     out.push(generateSdkMethod({ method, controller, inputRelativePath }))
   }
 
-  out.push('  },')
+  out.push('  }')
+  out.push('')
 
-  out.push(`  mutations: {`)
+  out.push(`static readonly mutations = {`)
 
   for (const method of mutations) {
     out.push(generateSdkMethod({ method, controller, inputRelativePath }))
   }
 
-  out.push('  },')
-
+  out.push('  }')
   out.push('')
+
+  out.push(generateEndpointBuilder({ controller, mutations, queries }))
   out.push('};')
+
   return out.join('\n')
+}
+
+export function generateEndpointBuilder({
+  mutations,
+  queries,
+}: {
+  controller: SdkController
+  mutations: SdkMethod[]
+  queries: SdkMethod[]
+}): string {
+  const out = []
+  out.push('static readonly build = (builder: EndpointBuilder<typeof BaseRequest, any, any>) => ({')
+
+  for (const method of queries) {
+    const resultType = awaitedResolvedType(method.returnType.resolvedType)
+    const argsType = generateMergedArgsType(method)
+    out.push(`  ${method.name}: builder.query<${resultType}, ${argsType}>({`)
+    out.push(`    queryFn: (args, api, extraOptions) => {`)
+    out.push(`      return BaseRequest(this.queries.${method.name}(args), api, extraOptions)`)
+    out.push(`    },`)
+    out.push(`  }),`)
+  }
+
+  for (const method of mutations) {
+    const resultType = awaitedResolvedType(method.returnType.resolvedType)
+    const argsType = generateMergedArgsType(method)
+    out.push(`  ${method.name}: builder.mutation<${resultType}, ${argsType}>({`)
+    out.push(`    queryFn: (args, api, extraOptions) => {`)
+    out.push(`      return BaseRequest(this.mutations.${method.name}(args), api, extraOptions)`)
+    out.push(`    },`)
+    out.push(`  }),`)
+  }
+
+  out.push('})')
+
+  return out.join('\n')
+}
+
+export function awaitedResolvedType(type: string): string {
+  const prefix = 'Promise<'
+  return type.startsWith(prefix) ? type.substring(prefix.length, type.length - 1) : type
 }
 
 export function generateSdkMethod({
@@ -193,22 +260,12 @@ export function generateSdkMethod({
 }
 
 export function generateSdkMethodSignature(method: SdkMethod): string {
-  const ret = method.returnType.resolvedType
-  const promised = ret.startsWith('Promise<') ? ret : `Promise<${ret}>`
-  const paramsType = generateSdkMethodParams(method)
-
-  return `${method.name}(${paramsType}): ${promised}`
+  const mergedArgsType = generateMergedArgsType(method)
+  return `${method.name}(args: ${mergedArgsType}): BaseRequestArgs`
 }
 
-export function generateSdkMethodParams(method: SdkMethod): string {
-  const { httpMethod, name, params } = method
-
-  if (httpMethod === SdkHttpMethod.Get && params.bodyParams) {
-    panic(`${httpMethod} ${name} should not have Body params`)
-  }
-  if (httpMethod !== SdkHttpMethod.Get && params.queryParams) {
-    panic(`${httpMethod} ${name} should not have Query params`)
-  }
+export function generateMergedArgsType(method: SdkMethod): string {
+  const { params } = method
 
   const inputTypes = []
 
@@ -224,9 +281,7 @@ export function generateSdkMethodParams(method: SdkMethod): string {
     inputTypes.push(methodParamsToString(params.bodyParams))
   }
 
-  const mergedInputType = inputTypes.join(' &\n')
-
-  return mergedInputType ? `params: ${mergedInputType}` : ''
+  return inputTypes.join(' &\n') || 'void'
 }
 
 /**
@@ -248,14 +303,14 @@ export function generateSdkMethodBody(method: SdkMethod): string {
 
   // Destructure parameters if they exist
   if (hasAnyParams) {
-    output.push(`const { ${routeParamsSpread} ...rest } = params`)
+    output.push(`const { ${routeParamsSpread} ...rest } = args`)
   }
 
   const isGet = httpMethod === SdkHttpMethod.Get
   const body = isGet || !hasAnyParams ? 'null' : 'rest'
   const query = isGet && hasAnyParams ? 'rest' : '{}'
 
-  output.push(`return request('${httpMethod}', \`${resolvedRoute}\`, ${body}, ${query})`)
+  output.push(`return { body: ${body}, method: '${httpMethod}', query: ${query}, route: \`${resolvedRoute}\` }`)
   return output.join('\n')
 }
 
@@ -275,3 +330,6 @@ export function methodParamsToString(params: SdkMethodParam): string {
   output.push('}')
   return output.join('\n')
 }
+
+// const ret = method.returnType.resolvedType
+//   const promised = ret.startsWith('Promise<') ? ret : `Promise<${ret}>`

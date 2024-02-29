@@ -1,6 +1,6 @@
 {
   "verbose": true,
   "apiInputPath": "../server",
-  "sdkOutput": "src/sdk",
+  "sdkOutputPath": "src/sdk",
   "sdkInterfacePath": "src/sdk-interface.ts"
 }

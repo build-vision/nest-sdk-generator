@@ -29,11 +29,14 @@ function camelcase(str: string): string {
  */
 export interface SdkController {
   /** Name of the controller's class, camel cased */
-  readonly camelClassName: string
+  readonly className: string
+
   /** Controller's methods */
   readonly methods: SdkMethod[]
+
   /** Original controller file's path */
   readonly path: string
+
   /** Name the controller is registered under */
   readonly registrationName: string
 }
@@ -111,7 +114,7 @@ export function analyzeController(project: Project, controllerPath: string, abso
     }
 
     // Update the registration name
-    registrationName = camelcase(nameArg.getLiteralText())
+    registrationName = nameArg.getLiteralText()
     controllerUriPrefix = registrationName
     debug('Registering controller {yellow} as {yellow} (as specified in @Controller())', className, registrationName)
   } else {
@@ -131,7 +134,7 @@ export function analyzeController(project: Project, controllerPath: string, abso
 
   return {
     path: controllerPath,
-    camelClassName: camelcase(className),
+    className,
     registrationName,
     methods,
   }
