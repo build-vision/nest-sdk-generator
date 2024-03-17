@@ -13,34 +13,10 @@ import { ResolvedTypeDeps, normalizeExternalFilePath } from '../analyzer/typedep
 import { config } from '../config'
 import { panic } from '../logging'
 
-export function replaceSuffix(str: string, { addSuffix = '', removeSuffix = '' }: { addSuffix?: string; removeSuffix?: string }) {
-  return str.replace(new RegExp(removeSuffix + '$'), '') + addSuffix
-}
-
-export function controllerExportName(controller: SdkController): string {
-  const suffixReplacement = config.controllerOutput?.exportName ?? {}
-  return replaceSuffix(controller.className, suffixReplacement)
-}
-
-export function controllerFileName(controller: SdkController): { ext: string; name: string } {
-  const { ext, name } = path.parse(controller.path)
-  const suffixReplacement = config.controllerOutput?.fileName ?? {}
-  const fileName = replaceSuffix(name, suffixReplacement)
-  return {
-    name: fileName,
-    ext: ext || '.ts',
-  }
-}
-
-export function controllerRelativePath({
-  controller,
-  inputRelativePath,
-}: {
-  controller: SdkController
-  inputRelativePath: string
-}): string {
-  return path.join(inputRelativePath, controller.path)
-}
+const NAMES = {
+  buildRTKEndpoints: 'buildRTKEndpoints',
+  groupRTKEndpoints: 'groupRTKEndpoints',
+} as const
 
 /**
  * Generate the SDK's module and controllers files
@@ -58,12 +34,13 @@ export function generateSdkModules({
   const genFiles = new Map<string, string>()
 
   /** Index file content */
-  const indexImports = [
-    'import type { EndpointBuilder } from "@reduxjs/toolkit/query/react";',
+  const imports = [
+    'import type { Api, EndpointBuilder, reactHooksModuleName } from "@reduxjs/toolkit/query/react";',
     'import { BaseRequest } from "./baseRequest";',
   ]
-  const indexExports = []
-  const indexEndpoints = []
+  const exports = []
+  const controllerEndpointBuilders = []
+  const controllerEndpointGroupers = []
 
   // Iterate over each module
   for (const [moduleName, controllers] of modules) {
@@ -73,23 +50,33 @@ export function generateSdkModules({
       genFiles.set(fileName + fileExt, generateController({ moduleName, controller, inputRelativePath }))
 
       const controllerExport = controllerExportName(controller)
-      indexImports.push(`import ${controllerExport} from "./${fileName}";`)
-      indexExports.push(`${controllerExport}`)
-      indexEndpoints.push(`...${controllerExport}.build(builder)`)
+      imports.push(`import ${controllerExport} from "./${fileName}";`)
+      exports.push(`${controllerExport}`)
+      controllerEndpointBuilders.push(`...${controllerExport}.${NAMES.buildRTKEndpoints}(builder)`)
+
+      const endpointGroupName = controllerEndpointGroupName(controller)
+      controllerEndpointGroupers.push(`${endpointGroupName}: ${controllerExport}.${NAMES.groupRTKEndpoints}(api)`)
     }
   }
 
-  const indexEndpointBuilder = [
-    'const build = (builder: EndpointBuilder<typeof BaseRequest, any, any>) => ({',
-    indexEndpoints.join(',\n'),
+  const endpointBuilder = [
+    `const ${NAMES.buildRTKEndpoints} = (builder: EndpointBuilder<typeof BaseRequest, any, any>) => ({`,
+    controllerEndpointBuilders.join(',\n'),
     '})',
   ].join('\n')
 
-  indexExports.push('build')
+  const endpointGrouper = [
+    `const ${NAMES.groupRTKEndpoints} = (api: Api<typeof BaseRequest, ReturnType<typeof ${NAMES.buildRTKEndpoints}>, string, string, typeof reactHooksModuleName>) => ({`,
+    controllerEndpointGroupers.join(',\n'),
+    '})',
+  ].join('\n')
 
-  const indexDefaultExport = ['export default {', indexExports.join(',\n'), '}'].join('\n')
+  exports.push(NAMES.buildRTKEndpoints)
+  exports.push(NAMES.groupRTKEndpoints)
 
-  const indexContent = [...indexImports, '', indexEndpointBuilder, '', indexDefaultExport, ''].join('\n')
+  const defaultExport = ['export default {', exports.join(',\n'), '}'].join('\n')
+
+  const indexContent = [...imports, endpointBuilder, endpointGrouper, defaultExport].join('\n\n')
 
   genFiles.set('index.ts', indexContent)
 
@@ -111,9 +98,9 @@ export function generateController({
 
   out.push('/// Module: ' + moduleName)
   out.push(`/// Controller: ${controllerName}`)
-  out.push(`/// File Path: file:///./${controllerRelativePath({ controller, inputRelativePath })}`)
+  out.push(`/// File Path: ${generateControllerFileLink({ controller, inputRelativePath })}`)
   out.push('')
-  out.push('import type { EndpointBuilder } from "@reduxjs/toolkit/query/react";')
+  out.push('import type { Api, EndpointBuilder, reactHooksModuleName } from "@reduxjs/toolkit/query/react";')
   out.push('import { BaseRequest } from "./baseRequest";')
   out.push('import type { BaseRequestArgs } from "./baseRequest";')
 
@@ -189,51 +176,15 @@ export function generateController({
   out.push('  }')
   out.push('')
 
-  out.push(generateEndpointBuilder({ controller, mutations, queries }))
+  out.push(generateBuildRTKEndpoints({ controller, mutations, queries, inputRelativePath }))
+  out.push('')
+
+  out.push(generateGroupRTKEndpoints({ controller, inputRelativePath }))
+  out.push('')
+
   out.push('};')
 
   return out.join('\n')
-}
-
-export function generateEndpointBuilder({
-  mutations,
-  queries,
-}: {
-  controller: SdkController
-  mutations: SdkMethod[]
-  queries: SdkMethod[]
-}): string {
-  const out = []
-  out.push('static readonly build = (builder: EndpointBuilder<typeof BaseRequest, any, any>) => ({')
-
-  for (const method of queries) {
-    const resultType = awaitedResolvedType(method.returnType.resolvedType)
-    const argsType = generateMergedArgsType(method)
-    out.push(`  ${method.name}: builder.query<${resultType}, ${argsType}>({`)
-    out.push(`    queryFn: (args, api, extraOptions) => {`)
-    out.push(`      return BaseRequest(this.queries.${method.name}(args), api, extraOptions)`)
-    out.push(`    },`)
-    out.push(`  }),`)
-  }
-
-  for (const method of mutations) {
-    const resultType = awaitedResolvedType(method.returnType.resolvedType)
-    const argsType = generateMergedArgsType(method)
-    out.push(`  ${method.name}: builder.mutation<${resultType}, ${argsType}>({`)
-    out.push(`    queryFn: (args, api, extraOptions) => {`)
-    out.push(`      return BaseRequest(this.mutations.${method.name}(args), api, extraOptions)`)
-    out.push(`    },`)
-    out.push(`  }),`)
-  }
-
-  out.push('})')
-
-  return out.join('\n')
-}
-
-export function awaitedResolvedType(type: string): string {
-  const prefix = 'Promise<'
-  return type.startsWith(prefix) ? type.substring(prefix.length, type.length - 1) : type
 }
 
 export function generateSdkMethod({
@@ -248,11 +199,7 @@ export function generateSdkMethod({
   const out = []
 
   out.push('')
-  out.push(`  /**`)
-  out.push(`  * ${method.httpMethod} ${unparseRoute(method.route)}`)
-  out.push(`  * ${controller.className}.${method.name}`)
-  out.push(`  * file:///./${controllerRelativePath({ controller, inputRelativePath })}`)
-  out.push(`  */`)
+  out.push(generateEndpointComment({ controller, inputRelativePath, method }))
   out.push(`${generateSdkMethodSignature(method)} {`)
   out.push(generateSdkMethodBody(method))
   out.push('  },')
@@ -314,6 +261,73 @@ export function generateSdkMethodBody(method: SdkMethod): string {
   return output.join('\n')
 }
 
+export function generateBuildRTKEndpoints({
+  controller,
+  inputRelativePath,
+  mutations,
+  queries,
+}: {
+  controller: SdkController
+  inputRelativePath: string
+  mutations: SdkMethod[]
+  queries: SdkMethod[]
+}): string {
+  const out = []
+  out.push(`static readonly ${NAMES.buildRTKEndpoints} = (builder: EndpointBuilder<typeof BaseRequest, any, any>) => ({`)
+
+  for (const method of queries) {
+    out.push(generateEndpointComment({ controller, inputRelativePath, method }))
+
+    const resultType = awaitedResolvedType(method.returnType.resolvedType)
+    const argsType = generateMergedArgsType(method)
+
+    out.push(`  ${method.name}: builder.query<${resultType}, ${argsType}>({`)
+    out.push(`    queryFn: (args, api, extraOptions) => {`)
+    out.push(`      return BaseRequest(this.queries.${method.name}(args), api, extraOptions)`)
+    out.push(`    },`)
+    out.push(`  }),`)
+  }
+
+  for (const method of mutations) {
+    out.push(generateEndpointComment({ controller, inputRelativePath, method }))
+
+    const resultType = awaitedResolvedType(method.returnType.resolvedType)
+    const argsType = generateMergedArgsType(method)
+
+    out.push(`  ${method.name}: builder.mutation<${resultType}, ${argsType}>({`)
+    out.push(`    queryFn: (args, api, extraOptions) => {`)
+    out.push(`      return BaseRequest(this.mutations.${method.name}(args), api, extraOptions)`)
+    out.push(`    },`)
+    out.push(`  }),`)
+  }
+
+  out.push('})')
+
+  return out.join('\n')
+}
+
+export function generateGroupRTKEndpoints({
+  controller,
+  inputRelativePath,
+}: {
+  controller: SdkController
+  inputRelativePath: string
+}): string {
+  const out = []
+  out.push(
+    `static readonly ${NAMES.groupRTKEndpoints} = (api: Api<typeof BaseRequest, ReturnType<typeof this.${NAMES.buildRTKEndpoints}>, string, string, typeof reactHooksModuleName>) => ({`
+  )
+
+  for (const method of controller.methods) {
+    out.push(generateEndpointComment({ controller, inputRelativePath, method }))
+    out.push(`  ${method.name}: api.endpoints.${method.name},`)
+  }
+
+  out.push('})')
+
+  return out.join('\n')
+}
+
 export function methodParamsToString(params: SdkMethodParam): string {
   if (params === null) {
     return ''
@@ -331,5 +345,63 @@ export function methodParamsToString(params: SdkMethodParam): string {
   return output.join('\n')
 }
 
-// const ret = method.returnType.resolvedType
-//   const promised = ret.startsWith('Promise<') ? ret : `Promise<${ret}>`
+export const generateEndpointComment = ({
+  controller,
+  inputRelativePath,
+  method,
+}: {
+  controller: SdkController
+  inputRelativePath: string
+  method: SdkMethod
+}) => {
+  const out = []
+  out.push(`/**`)
+  out.push(`* ${method.httpMethod} ${unparseRoute(method.route)} <=> ${controller.className}.${method.name}`)
+  out.push(`*`)
+  out.push(`* ${generateControllerFileLink({ controller, inputRelativePath })}`)
+  out.push(`*/`)
+  return out.join('\n')
+}
+
+export const generateControllerFileLink = ({ controller, inputRelativePath }: { controller: SdkController; inputRelativePath: string }) => {
+  return `file:///./${controllerRelativePath({ controller, inputRelativePath })} (cmd + click)`
+}
+
+export function replaceSuffix(str: string, { addSuffix = '', removeSuffix = '' }: { addSuffix?: string; removeSuffix?: string }) {
+  return str.replace(new RegExp(removeSuffix + '$'), '') + addSuffix
+}
+
+export function controllerEndpointGroupName(controller: SdkController): string {
+  const suffixReplacement = config.controllerOutput?.endpointGroupName ?? {}
+  return replaceSuffix(controller.className, suffixReplacement)
+}
+
+export function controllerExportName(controller: SdkController): string {
+  const suffixReplacement = config.controllerOutput?.exportName ?? {}
+  return replaceSuffix(controller.className, suffixReplacement)
+}
+
+export function controllerFileName(controller: SdkController): { ext: string; name: string } {
+  const { ext, name } = path.parse(controller.path)
+  const suffixReplacement = config.controllerOutput?.fileName ?? {}
+  const fileName = replaceSuffix(name, suffixReplacement)
+  return {
+    name: fileName,
+    ext: ext || '.ts',
+  }
+}
+
+export function controllerRelativePath({
+  controller,
+  inputRelativePath,
+}: {
+  controller: SdkController
+  inputRelativePath: string
+}): string {
+  return path.join(inputRelativePath, controller.path)
+}
+
+export function awaitedResolvedType(type: string): string {
+  const prefix = 'Promise<'
+  return type.startsWith(prefix) ? type.substring(prefix.length, type.length - 1) : type
+}

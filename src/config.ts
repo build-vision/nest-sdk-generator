@@ -12,6 +12,10 @@ export interface Config {
   readonly apiInputPath: string
 
   readonly controllerOutput?: {
+    endpointGroupName?: {
+      addSuffix?: string
+      removeSuffix?: string
+    }
     exportName?: {
       addSuffix?: string
       removeSuffix?: string
