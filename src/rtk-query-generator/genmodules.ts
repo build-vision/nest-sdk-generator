@@ -16,6 +16,7 @@ import { panic } from '../logging'
 const NAMES = {
   buildRTKEndpoints: 'buildRTKEndpoints',
   groupRTKEndpoints: 'groupRTKEndpoints',
+  GeneratedAPIType: 'GeneratedAPIType',
 } as const
 
 /**
@@ -65,8 +66,9 @@ export function generateSdkModules({
     '})',
   ].join('\n')
 
+  const generatedAPIType = `Api<typeof BaseRequest, ReturnType<typeof ${NAMES.buildRTKEndpoints}>, string, string, typeof reactHooksModuleName>`
   const endpointGrouper = [
-    `const ${NAMES.groupRTKEndpoints} = (api: Api<typeof BaseRequest, ReturnType<typeof ${NAMES.buildRTKEndpoints}>, string, string, typeof reactHooksModuleName>) => ({`,
+    `const ${NAMES.groupRTKEndpoints} = (api: ${NAMES.GeneratedAPIType}) => ({`,
     controllerEndpointGroupers.join(',\n'),
     '})',
   ].join('\n')
@@ -74,9 +76,10 @@ export function generateSdkModules({
   exports.push(NAMES.buildRTKEndpoints)
   exports.push(NAMES.groupRTKEndpoints)
 
+  const apiTypeExport = `export type ${NAMES.GeneratedAPIType} = ${generatedAPIType}`
   const defaultExport = ['export default {', exports.join(',\n'), '}'].join('\n')
 
-  const indexContent = [...imports, endpointBuilder, endpointGrouper, defaultExport].join('\n\n')
+  const indexContent = [imports.join('\n'), endpointBuilder, apiTypeExport, endpointGrouper, defaultExport].join('\n\n')
 
   genFiles.set('index.ts', indexContent)
 
