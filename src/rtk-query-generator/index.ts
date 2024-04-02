@@ -6,6 +6,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 import { SdkContent } from '../analyzer'
+import { SdkController } from '../analyzer/controller'
 import { normalizeExternalFilePath } from '../analyzer/typedeps'
 import { Config } from '../config'
 import { debug, panic, println } from '../logging'
@@ -16,6 +17,8 @@ import { findPrettierConfig, prettify } from './prettier'
 import { defaultSdkInterface } from './sdk-interface'
 
 export default async function generateRTKQueryEndpoints(config: Config, sdkContent: SdkContent): Promise<void> {
+  validateSdkContent(sdkContent)
+
   const prettifyOutput = config.prettify !== false
 
   if (!prettifyOutput) {
@@ -89,4 +92,30 @@ export default async function generateRTKQueryEndpoints(config: Config, sdkConte
 
     fs.writeFileSync(sdkInterfacePath, defaultSdkInterface, 'utf8')
   }
+}
+
+export const validateSdkContent = (content: SdkContent): void => {
+  const seenMethods = new Map<string, SdkController>()
+  const seenRoutes = new Map<string, SdkController>()
+
+  content.modules.forEach((module) => {
+    module.forEach((controller) => {
+      controller.methods.forEach((method) => {
+        if (seenMethods.has(method.name)) {
+          const oldController = seenMethods.get(method.name)!
+          panic(
+            `Duplicate method name found: ${method.name} in ${controller.className} and ${oldController.className}\n
+            RTK Query requires globally unique method names.`
+          )
+        }
+
+        seenMethods.set(method.name, controller)
+
+        if (seenRoutes.has(method.uriPath)) {
+          const oldController = seenRoutes.get(method.uriPath)!
+          panic(`Duplicate route URI found: ${method.uriPath} in ${controller.className} and ${oldController.className}`)
+        }
+      })
+    })
+  })
 }
