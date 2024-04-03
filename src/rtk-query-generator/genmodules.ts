@@ -37,7 +37,7 @@ export function generateSdkModules({
   /** Index file content */
   const imports = [
     'import type { Api, EndpointBuilder, reactHooksModuleName } from "@reduxjs/toolkit/query/react";',
-    'import { BaseRequest } from "./baseRequest";',
+    'import type { BaseRequestFn } from "./baseRequest";',
   ]
   const exports = []
   const controllerEndpointBuilders = []
@@ -61,12 +61,12 @@ export function generateSdkModules({
   }
 
   const endpointBuilder = [
-    `const ${NAMES.buildRTKEndpoints} = (builder: EndpointBuilder<typeof BaseRequest, any, any>) => ({`,
+    `const ${NAMES.buildRTKEndpoints} = (builder: EndpointBuilder<BaseRequestFn, any, any>) => ({`,
     controllerEndpointBuilders.join(',\n'),
     '})',
   ].join('\n')
 
-  const generatedAPIType = `Api<typeof BaseRequest, ReturnType<typeof ${NAMES.buildRTKEndpoints}>, string, string, typeof reactHooksModuleName>`
+  const generatedAPIType = `Api<BaseRequestFn, ReturnType<typeof ${NAMES.buildRTKEndpoints}>, string, string, typeof reactHooksModuleName>`
   const endpointGrouper = [
     `const ${NAMES.groupRTKEndpoints} = (api: ${NAMES.GeneratedAPIType}) => ({`,
     controllerEndpointGroupers.join(',\n'),
@@ -104,8 +104,7 @@ export function generateController({
   out.push(`/// File Path: ${generateControllerFileLink({ controller, inputRelativePath })}`)
   out.push('')
   out.push('import type { Api, EndpointBuilder, reactHooksModuleName } from "@reduxjs/toolkit/query/react";')
-  out.push('import { BaseRequest } from "./baseRequest";')
-  out.push('import type { BaseRequestArgs } from "./baseRequest";')
+  out.push('import type { BaseRequestArgs, BaseRequestFn } from "./baseRequest";')
 
   const imports = new Map<string, string[]>()
 
@@ -276,7 +275,7 @@ export function generateBuildRTKEndpoints({
   queries: SdkMethod[]
 }): string {
   const out = []
-  out.push(`static readonly ${NAMES.buildRTKEndpoints} = (builder: EndpointBuilder<typeof BaseRequest, any, any>) => ({`)
+  out.push(`static readonly ${NAMES.buildRTKEndpoints} = (builder: EndpointBuilder<BaseRequestFn, any, any>) => ({`)
 
   for (const method of queries) {
     out.push(generateEndpointComment({ controller, inputRelativePath, method }))
@@ -284,11 +283,9 @@ export function generateBuildRTKEndpoints({
     const resultType = awaitedResolvedType(method.returnType.resolvedType)
     const argsType = generateMergedArgsType(method)
 
-    out.push(`  ${method.name}: builder.query<${resultType}, ${argsType}>({`)
-    out.push(`    queryFn: (args, api, extraOptions) => {`)
-    out.push(`      return BaseRequest(this.queries.${method.name}(args), api, extraOptions)`)
-    out.push(`    },`)
-    out.push(`  }),`)
+    out.push(`${method.name}: builder.query<${resultType}, ${argsType}>({`)
+    out.push(`  query: this.queries.${method.name},`)
+    out.push(`}),`)
   }
 
   for (const method of mutations) {
@@ -297,11 +294,9 @@ export function generateBuildRTKEndpoints({
     const resultType = awaitedResolvedType(method.returnType.resolvedType)
     const argsType = generateMergedArgsType(method)
 
-    out.push(`  ${method.name}: builder.mutation<${resultType}, ${argsType}>({`)
-    out.push(`    queryFn: (args, api, extraOptions) => {`)
-    out.push(`      return BaseRequest(this.mutations.${method.name}(args), api, extraOptions)`)
-    out.push(`    },`)
-    out.push(`  }),`)
+    out.push(`${method.name}: builder.mutation<${resultType}, ${argsType}>({`)
+    out.push(`  query: this.mutations.${method.name}`)
+    out.push(`}),`)
   }
 
   out.push('})')
@@ -318,7 +313,7 @@ export function generateGroupRTKEndpoints({
 }): string {
   const out = []
   out.push(
-    `static readonly ${NAMES.groupRTKEndpoints} = (api: Api<typeof BaseRequest, ReturnType<typeof this.${NAMES.buildRTKEndpoints}>, string, string, typeof reactHooksModuleName>) => ({`
+    `static readonly ${NAMES.groupRTKEndpoints} = (api: Api<BaseRequestFn, ReturnType<typeof this.${NAMES.buildRTKEndpoints}>, string, string, typeof reactHooksModuleName>) => ({`
   )
 
   for (const method of controller.methods) {

@@ -85,7 +85,7 @@ export default async function generateRTKQueryEndpoints(config: Config, sdkConte
     .replace(/\\/g, '/')
     .replace(/\.([jt]sx?)$/, '')
 
-  await writeScriptTo(null, 'baseRequest.ts', `export { BaseRequest, type BaseRequestArgs } from "${relativeSdkInterfacePath}"`)
+  await writeScriptTo(null, 'baseRequest.ts', `export type { BaseRequestArgs, BaseRequestFn } from "${relativeSdkInterfacePath}"`)
 
   if (!fs.existsSync(sdkInterfacePath) && config.generateDefaultSdkInterface !== false) {
     println('├─ Generating default SDK interface...')

@@ -1,7 +1,7 @@
 {
   "name": "@buildvision/nest-sdk-generator",
   "author": "BuildVision <christophe@buildvision.io>",
-  "version": "2.2.2",
+  "version": "2.3.0",
   "description": "A full-powered SDK generator for NestJS",
   "keywords": [
     "nest",
