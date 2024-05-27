@@ -9,9 +9,9 @@ import { SdkModules } from '../analyzer/controllers'
 import { SdkHttpMethod, SdkMethod } from '../analyzer/methods'
 import { SdkMethodParam, getParamResolvedTypes, isParamResolvedType } from '../analyzer/params'
 import { paramsFromRoute, resolveRouteWith, unparseRoute } from '../analyzer/route'
-import { ResolvedTypeDeps, normalizeExternalFilePath } from '../analyzer/typedeps'
+import { ResolvedTypeDeps } from '../analyzer/typedeps'
 import { config } from '../config'
-import { panic } from '../logging'
+import { debug, panic } from '../logging'
 
 const NAMES = {
   buildRTKEndpoints: 'buildRTKEndpoints',
@@ -96,6 +96,8 @@ export function generateController({
   moduleName: string
 }): string {
   const controllerName = controller.className
+  debug(`├─ ${controllerName}: ${controller.path}`)
+
   /** Generated controller's content */
   const out: string[] = []
 
@@ -139,9 +141,7 @@ export function generateController({
   }
 
   for (const [file, types] of imports) {
-    out.push(
-      `import type { ${types.join(', ')} } from "../_types/${normalizeExternalFilePath(file.replace(/\\/g, '/')).replace(/\\/g, '/')}";`
-    )
+    out.push(`import type { ${types.join(', ')} } from "${path.join(inputRelativePath, file)}";`)
   }
 
   out.push('')
@@ -159,6 +159,9 @@ export function generateController({
     },
     { mutations: [] as SdkMethod[], queries: [] as SdkMethod[] }
   )
+
+  debug(`├── Queries: ${queries.length}`)
+  debug(`├── Mutations: ${mutations.length}`)
 
   out.push(`static readonly queries = {`)
 

@@ -7,12 +7,10 @@ import * as path from 'path'
 
 import { SdkContent } from '../analyzer'
 import { SdkController } from '../analyzer/controller'
-import { normalizeExternalFilePath } from '../analyzer/typedeps'
 import { Config } from '../config'
 import { debug, panic, println } from '../logging'
 
 import { generateSdkModules } from './genmodules'
-import { generateSdkTypeFiles } from './gentypes'
 import { findPrettierConfig, prettify } from './prettier'
 import { defaultSdkInterface } from './sdk-interface'
 
@@ -66,13 +64,6 @@ export default async function generateRTKQueryEndpoints(config: Config, sdkConte
     fs.writeFileSync(fullPath, fileContent, 'utf8')
   }
 
-  println('> Generating type files...')
-
-  for (const [file, content] of generateSdkTypeFiles(sdkContent.types)) {
-    await writeScriptTo('_types', normalizeExternalFilePath(file), content)
-  }
-
-  println('> Generating modules...')
   const modules = sdkContent.modules
   for (const [file, content] of generateSdkModules({ modules, inputRelativePath })) {
     await writeScriptTo(null, file, content)
@@ -88,7 +79,7 @@ export default async function generateRTKQueryEndpoints(config: Config, sdkConte
   await writeScriptTo(null, 'baseRequest.ts', `export type { BaseRequestArgs, BaseRequestFn } from "${relativeSdkInterfacePath}"`)
 
   if (!fs.existsSync(sdkInterfacePath) && config.generateDefaultSdkInterface !== false) {
-    println('├─ Generating default SDK interface...')
+    println('├─ Generating default BaseRequest implementation...')
 
     fs.writeFileSync(sdkInterfacePath, defaultSdkInterface, 'utf8')
   }

@@ -12,6 +12,10 @@ export function format(message: string, ...params: Array<number | string>): stri
   )
 }
 
+export function log(message: string, ...params: Array<number | string>) {
+  console.log(chalk.green(format(message, ...params)))
+}
+
 export function panic(message: string, ...params: Array<number | string>): never {
   console.error(chalk.redBright('ERROR: ' + format(message, ...params)))
   process.exit(1)

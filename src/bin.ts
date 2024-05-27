@@ -5,7 +5,7 @@ import * as path from 'path'
 import { analyzerCli } from './analyzer'
 import { config, configPath } from './config'
 import generateAPIClient from './generator'
-import { println } from './logging'
+import { log } from './logging'
 import generateRTKQueryEndpoints from './rtk-query-generator'
 
 async function main() {
@@ -22,10 +22,11 @@ async function main() {
   }
 
   if (outputType === '--generate-rtk') {
+    log('> Generating RTK Query endpoints for Nest API...')
     await generateRTKQueryEndpoints(config, sdkContent)
   }
 
-  println('{green}', '@ Done in ' + ((Date.now() - started) / 1000).toFixed(2) + 's')
+  log('> Done in ' + ((Date.now() - started) / 1000).toFixed(2) + 's')
 }
 
 main()
