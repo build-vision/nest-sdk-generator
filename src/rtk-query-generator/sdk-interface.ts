@@ -1,6 +1,5 @@
 export const defaultSdkInterface = `
-import type { BaseQueryApi } from "@reduxjs/toolkit/dist/query/baseQueryTypes";
-import type { BaseQueryFn } from "@reduxjs/toolkit/query";
+import type { BaseQueryApi, BaseQueryFn } from "@reduxjs/toolkit/query";
 
 export type BaseRequestArgs = {
   body: unknown;
@@ -158,7 +157,7 @@ export type RequestErrorParams = {
 };
 
 export class RequestError extends Error {
-  public static readonly DEFAULT_USER_MESSAGE: "An unexpected error occurred. We're looking into it!";
+  public static readonly DEFAULT_USER_MESSAGE = "An unexpected error occurred. We're looking into it!";
 
   public readonly type: RequestErrorType;
   public readonly userMessage: string;

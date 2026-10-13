@@ -42,8 +42,10 @@
     "typescript": "7.0.2"
   },
   "devDependencies": {
+    "@reduxjs/toolkit": "^2.13.0",
     "@types/minimist": "^1.2.2",
     "@types/node": "~18.11.9",
+    "@types/react": "^19.3.0",
     "@typescript-eslint/eslint-plugin": "^6.13.2",
     "@typescript-eslint/parser": "^6.13.2",
     "eslint": "^8.50.0",
@@ -54,6 +56,8 @@
     "eslint-plugin-prettier": "^5.0.0",
     "eslint-plugin-sort-destructure-keys": "^1.5.0",
     "eslint-plugin-typescript-sort-keys": "^3.1.0",
+    "react": "^19.3.0",
+    "react-redux": "^9.3.0",
     "typescript-6": "npm:typescript@6.0.3"
   }
 }

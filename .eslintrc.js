@@ -10,7 +10,7 @@ module.exports = {
     'plugin:typescript-sort-keys/recommended',
   ],
   parser: '@typescript-eslint/parser',
-  ignorePatterns: ['build/*', 'demo/*'],
+  ignorePatterns: ['build/*', 'demo/*', 'test/fixtures/client/src/api/*'],
   plugins: ['import', 'sort-destructure-keys', 'eslint-comments', 'prettier'],
   rules: {
     'sort-destructure-keys/sort-destructure-keys': [
