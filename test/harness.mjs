@@ -42,41 +42,6 @@ export function assertBuilt() {
       throw new Error(`Missing ${path.relative(REPO, bin)}: run "npm run build" and "npm run build:baseline" first`)
     }
   }
-
-  installFixturePackages()
-}
-
-/** Stand-ins for the packages the fixture API depends on (@nestjs/common...), committed outside of node_modules */
-export const FIXTURE_PACKAGES = path.join(FIXTURES, 'packages')
-
-/**
- * Copy the fixture packages to the fixture API's (git-ignored) node_modules directory
- * They must really be in a node_modules directory: the generator treats such files differently, and TypeScript would
- * resolve symbolic links to their real path. Test files run in parallel processes, so the directory is built in a
- * temporary location and moved into place.
- */
-function installFixturePackages() {
-  const target = path.join(FIXTURES, 'api', 'node_modules')
-  const marker = path.join(target, '.fixture-packages')
-  const files = fs.readdirSync(FIXTURE_PACKAGES, { recursive: true }).sort()
-  const fingerprint = files.map((file) => {
-    const fullPath = path.join(FIXTURE_PACKAGES, file)
-    return fs.statSync(fullPath).isFile() ? `${file}\n${fs.readFileSync(fullPath, 'utf8')}` : file
-  }).join('\n')
-
-  if (fs.existsSync(marker) && fs.readFileSync(marker, 'utf8') === fingerprint) return
-
-  const staging = fs.mkdtempSync(path.join(FIXTURES, 'api', '.node_modules-'))
-  fs.cpSync(FIXTURE_PACKAGES, staging, { recursive: true })
-  fs.writeFileSync(path.join(staging, '.fixture-packages'), fingerprint)
-
-  try {
-    fs.rmSync(target, { recursive: true, force: true })
-    fs.renameSync(staging, target)
-  } catch {
-    // Another test process installed them at the same time
-    fs.rmSync(staging, { recursive: true, force: true })
-  }
 }
 
 let tmpRoot = null
