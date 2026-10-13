@@ -8,38 +8,10 @@ import { Node, Project } from 'ts-morph'
 
 import { debug, warn } from '../logging'
 
-import { analyzeMethods, SdkMethod } from './methods'
+import { analyzeMethods } from './methods'
+import { camelcase, SdkController } from './sdk'
 
-/**
- * Convert a string to camel case
- * @param str
- */
-function camelcase(str: string): string {
-  return str
-    .split(/[^a-zA-Z0-9_]/g)
-    .map((p, i) => {
-      const f = p.substr(0, 1)
-      return (i === 0 ? f.toLocaleLowerCase() : f.toLocaleUpperCase()) + p.substr(1)
-    })
-    .join('')
-}
-
-/**
- * SDK interface of a controller
- */
-export interface SdkController {
-  /** Name of the controller's class, camel cased */
-  readonly className: string
-
-  /** Controller's methods */
-  readonly methods: SdkMethod[]
-
-  /** Original controller file's path */
-  readonly path: string
-
-  /** Name the controller is registered under */
-  readonly registrationName: string
-}
+export { SdkController }
 
 /**
  * Generate a SDK interface for a controller

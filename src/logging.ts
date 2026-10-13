@@ -1,4 +1,4 @@
-import * as chalk from 'chalk'
+import chalk = require('chalk')
 
 import { config } from './config'
 
@@ -29,6 +29,11 @@ export function warn(message: string, ...params: Array<number | string>) {
   if (config.verbose) {
     console.warn(chalk.yellow(format(message, ...params)))
   }
+}
+
+/** Like `warn()`, but always displayed */
+export function notice(message: string, ...params: Array<number | string>) {
+  console.warn(chalk.yellow(format(message, ...params)))
 }
 
 export function println(message: string, ...params: Array<number | string>) {

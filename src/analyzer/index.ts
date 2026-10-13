@@ -11,13 +11,11 @@ import { Config } from '../config'
 import { debug, panic } from '../logging'
 
 import { builtinMagicTypes } from './builtin'
-import { analyzeControllers, SdkModules } from './controllers'
-import { flattenSdkResolvedTypes, locateTypesFile, TypesExtractor, TypesExtractorContent } from './extractor'
+import { analyzeControllers } from './controllers'
+import { TypesExtractor } from './extractor'
+import { flattenSdkResolvedTypes, locateTypesFile, SdkContent, serializeSdkContent } from './sdk'
 
-export interface SdkContent {
-  readonly modules: SdkModules
-  readonly types: TypesExtractorContent
-}
+export { SdkContent }
 
 export interface MagicType {
   readonly content: string
@@ -126,11 +124,7 @@ export async function analyzerCli(config: Config): Promise<SdkContent> {
   }
 
   if (config.jsonOutput) {
-    fs.writeFileSync(
-      config.jsonOutput,
-      JSON.stringify(content, (_, v) => (v instanceof Map ? Object.fromEntries(v) : v), config.jsonPrettyOutput ? 4 : 0),
-      'utf8'
-    )
+    fs.writeFileSync(config.jsonOutput, serializeSdkContent(content, !!config.jsonPrettyOutput), 'utf8')
   }
 
   debug('\n===== Done in {green}! ====', ((Date.now() - started) / 1000).toFixed(2) + 's')

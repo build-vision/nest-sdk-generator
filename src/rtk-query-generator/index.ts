@@ -5,8 +5,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
-import { SdkContent } from '../analyzer'
-import { SdkController } from '../analyzer/controller'
+import { SdkContent, SdkController } from '../analyzer/sdk'
 import { Config } from '../config'
 import { debug, panic, println } from '../logging'
 

@@ -4,11 +4,16 @@
 
 import path = require('path')
 
-import { SdkController } from '../analyzer/controller'
-import { SdkModules } from '../analyzer/controllers'
-import { SdkHttpMethod, SdkMethod } from '../analyzer/methods'
-import { SdkMethodParam, getParamResolvedTypes, isParamResolvedType } from '../analyzer/params'
 import { paramsFromRoute, resolveRouteWith, unparseRoute } from '../analyzer/route'
+import {
+  getParamResolvedTypes,
+  isParamResolvedType,
+  SdkController,
+  SdkHttpMethod,
+  SdkMethod,
+  SdkMethodParam,
+  SdkModules,
+} from '../analyzer/sdk'
 import { ResolvedTypeDeps } from '../analyzer/typedeps'
 import { config } from '../config'
 import { debug, panic } from '../logging'

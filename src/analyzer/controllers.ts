@@ -10,10 +10,11 @@ import { Project } from 'ts-morph'
 import { debug, format, panic, warn } from '../logging'
 import { findFileAbove } from '../utils'
 
-import { analyzeController, SdkController } from './controller'
+import { analyzeController } from './controller'
 import { getModuleName } from './module'
+import { SdkController, SdkModules } from './sdk'
 
-export type SdkModules = Map<string, Map<string, SdkController>>
+export { SdkModules }
 
 export function analyzeControllers(controllers: string[], absoluteSrcPath: string, project: Project): SdkModules {
   /** Hierarchised SDK informations */

@@ -47,9 +47,17 @@ export interface ResolvedTypeDeps {
  * @returns
  */
 export function resolveTypeDependencies(type: Type<ts.Type>, relativeFilePath: string, absoluteSrcPath: string): ResolvedTypeDeps {
-  /** Raw type's text (e.g. `Array<import("somefile.ts").SomeType>`) */
-  const rawType = type.getText()
+  return resolveTypeTextDependencies(type.getText(), relativeFilePath, absoluteSrcPath)
+}
 
+/**
+ * Resolve the dependencies of a type from its text, as printed by the TypeScript checker
+ * @param rawType Raw type's text (e.g. `Array<import("somefile.ts").SomeType>`)
+ * @param relativeFilePath
+ * @param absoluteSrcPath
+ * @returns
+ */
+export function resolveTypeTextDependencies(rawType: string, relativeFilePath: string, absoluteSrcPath: string): ResolvedTypeDeps {
   if (path.isAbsolute(relativeFilePath)) {
     unreachable(
       'Internal error: got absolute file path in type dependencies resolver, when expecting a relative one (got {magentaBright})',
@@ -85,7 +93,7 @@ export function resolveTypeDependencies(type: Type<ts.Type>, relativeFilePath: s
     if (path.isAbsolute(depFile)) {
       unreachable(
         'Internal error: resolved absolute file path in type dependencies, when should have resolved a relative one\nIn type: {yellow}\nGot: {magentaBright}',
-        type.getText(),
+        rawType,
         depFile
       )
     }
@@ -107,7 +115,17 @@ export function resolveTypeDependencies(type: Type<ts.Type>, relativeFilePath: s
  * @returns
  */
 export function getImportResolvedType(type: Type<ts.Type>): string {
-  return type.getText().replace(IMPORTED_TYPE_REGEX, (_, __, typename) => typename)
+  return getImportResolvedTypeText(type.getText())
+}
+
+/**
+ * Extract an import type's name from a type's text
+ * @example "import('dir/file').TypeName" => "TypeName"
+ * @param typeText
+ * @returns
+ */
+export function getImportResolvedTypeText(typeText: string): string {
+  return typeText.replace(IMPORTED_TYPE_REGEX, (_, __, typename) => typename)
 }
 
 /**
