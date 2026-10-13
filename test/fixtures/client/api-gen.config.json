@@ -1,0 +1,11 @@
+{
+  "apiInputPath": "../api",
+  "sdkOutputPath": "./src/api/endpoints",
+  "sdkInterfacePath": "./src/api/BaseRequest.ts",
+  "generateTimestamps": false,
+  "controllerOutput": {
+    "fileName": { "removeSuffix": ".controller", "addSuffix": ".endpoints" },
+    "exportName": { "removeSuffix": "Controller", "addSuffix": "Endpoints" },
+    "endpointGroupName": { "removeSuffix": "Controller" }
+  }
+}

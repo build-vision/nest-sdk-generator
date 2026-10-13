@@ -349,9 +349,9 @@ export const BaseRequest: BaseRequestFn = async ({ body, method, query, route })
 
 The function receives RTK Query's usual extra arguments (`api`, with `getState`, `dispatch` and `signal`, and `extraOptions`), so you can read a token from the store or support request cancellation. To handle errors globally (e.g. show a toast), wrap the function and pass the wrapper to `createApi`.
 
-The error type you declare in `BaseRequestFn` is the type of `error` returned by the hooks.
+The `error` returned by the hooks is either the error type you declare in `BaseRequestFn`, or RTK Query's `SerializedError` (for unexpected exceptions).
 
-**Starter implementation.** When `sdkInterfacePath` doesn't exist, the generator writes a more complete starter (query serialization, a `RequestError` class with HTTP metadata, user-facing messages from Nest's error responses) that you can adapt. It assumes the API is served from `/api` on the current host. With Redux Toolkit 2, change its first import to `import type { BaseQueryApi } from "@reduxjs/toolkit/query";`.
+**Starter implementation.** When `sdkInterfacePath` doesn't exist, the generator writes a more complete starter (query serialization, a `RequestError` class with HTTP metadata, user-facing messages from Nest's error responses) that you can adapt. It assumes the API is served from `/api` on the current host.
 
 ## Adding caching (tags)
 
@@ -440,6 +440,7 @@ Newer TypeScript versions infer some types more precisely than TypeScript 4.8 (e
 - **Static analysis only.** Routes are discovered from the decorators listed in [How controllers become endpoints](#how-controllers-become-endpoints): routes registered dynamically, `@All()`, `@Head()`, `@Options()`, `@Controller()` options objects, versioning and global prefixes aren't taken into account (put global prefixes in your request function's base URL).
 - **No wildcard routes** (`*`, `+`, `?` in paths), and route parameter names may only contain letters, digits and `_`.
 - **Generic `@Param()` objects aren't supported**: use one `@Param('name')` per route parameter.
+- **Optional keyed parameters are required keys.** `@Query('page') page?: number` produces `{ page: number | undefined }`: pass `page: undefined` explicitly, or use a `@Query()` DTO with optional properties.
 - **Controller paths without a prefix.** With `@Controller()` (no prefix), the method's path is used as is: write `@Get('/articles')` rather than `@Get('articles')` to get a route starting with `/`.
 - **One module file per directory.** A controller's module is found by looking for a `*.module.ts` file in its directory, then its parents.
 - **Unique names.** Controller class names, and method names across controllers, must be unique.

@@ -7,3 +7,4 @@
 sdk-generator.build.log
 /.parity
 *.tsbuildinfo
+/test/fixtures/client/src/api

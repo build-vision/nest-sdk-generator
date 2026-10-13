@@ -56,6 +56,10 @@ const SCENARIOS = [
     args: ['--generate-rtk'],
     expectedExitCode: 0,
     expectedFiles: ['out/index.ts', 'out/users.controller.ts', 'BaseRequest.ts'],
+    baselineDifferences: {
+      files: ['BaseRequest.ts'],
+      reason: 'the starter request function was fixed for Redux Toolkit 2 in 3.0 (see test/rtk-client.test.mjs)',
+    },
   },
   {
     name: 'generate-frontend-like',
@@ -161,9 +165,17 @@ describe('fixture API', { concurrency: true }, () => {
 
       const [legacyReference, ...legacyOthers] = legacyVariants
       for (const variant of legacyOthers) {
+        // Files intentionally changed since the baseline are only excluded from comparisons with the baseline
+        const withoutBaselineDifferences = (result) =>
+          legacyReference === 'baseline' && scenario.baselineDifferences
+            ? { ...result, files: Object.fromEntries(Object.entries(result.files).filter(([file]) => !scenario.baselineDifferences.files.includes(file))) }
+            : result
+        const expected = withoutBaselineDifferences(results[legacyReference])
+        const actual = withoutBaselineDifferences(results[variant])
+
         assert.ok(
-          JSON.stringify(results[variant]) === JSON.stringify(results[legacyReference]),
-          `${variant} differs from ${legacyReference}:\n${describeDiff(results[legacyReference], results[variant], legacyReference, variant)}`
+          JSON.stringify(actual) === JSON.stringify(expected),
+          `${variant} differs from ${legacyReference}:\n${describeDiff(expected, actual, legacyReference, variant)}`
         )
       }
 
