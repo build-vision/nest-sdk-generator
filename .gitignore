@@ -5,3 +5,5 @@
 /test-module
 /node_modules
 sdk-generator.build.log
+/.parity
+*.tsbuildinfo

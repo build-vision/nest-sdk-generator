@@ -4,7 +4,7 @@
 
 import * as path from 'path'
 
-import { TypesExtractorContent } from '../analyzer/extractor'
+import { TypesExtractorContent } from '../analyzer/sdk'
 import { normalizeExternalFilePath } from '../analyzer/typedeps'
 
 /**

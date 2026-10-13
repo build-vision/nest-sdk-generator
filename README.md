@@ -81,9 +81,33 @@ You can find a complete demonstration API in the [`demo/server`](demo/server) di
 
 ## How fast is it?
 
-On our internal test project, with 20 controllers and 80 routes, the full process takes 3 seconds (from a cold start) on a Core i7-8750H (6-core laptop CPU from 2018) to generate 84 file with 2246 lines of code.
+Most of the time is spent by the TypeScript compiler analyzing the API, so the generator offers several analysis engines:
 
-The duration should be roughly proportional to the quantity of routes and DTOs you use in your application, although on very small applications in usually won't go below 2 seconds on such a CPU.
+| Engine                 | Compiler                                      | Output                                     |
+| ---------------------- | --------------------------------------------- | ------------------------------------------ |
+| `tsgo` (default)       | TypeScript 7 native compiler (bundled)        | Reference output                           |
+| `typescript`           | Your API's TypeScript compiler (6.x), in-process | Same as `tsgo`*                         |
+| `ts-morph`             | TypeScript 4.8 (bundled with ts-morph)        | Same as versions 2.3 and below             |
+
+On an API with 66 controllers, 687 routes and ~2,500 source files (plus large dependencies like `googleapis`), generating RTK Query endpoints takes:
+
+| Engine       | Duration |
+| ------------ | -------- |
+| `tsgo`       | 2.4s     |
+| `typescript` | 8.8s     |
+| `ts-morph`   | 17.7s    |
+
+Choose the engine with the `engine` configuration option, or with the `--engine` command-line option (which takes precedence):
+
+```shell
+npx @buildvision/nest-sdk-generator sdk-generator.json --generate-rtk --engine=typescript
+```
+
+If the `tsgo` engine can't be started (e.g. on a platform without a TypeScript 7 native binary), the generator automatically falls back to the `typescript` engine.
+
+\* TypeScript 6 and 7 print a few rare types differently (e.g. classes declared inside generic functions, used as base classes), which can change the list of types extracted for the `--generate` mode's type files.
+
+Newer TypeScript versions infer some types more precisely than TypeScript 4.8 (e.g. `(User | undefined)[]` becomes `User[]` after a `.filter()` with a type guard), and order union members deterministically, so the `tsgo` and `typescript` engines may generate slightly different (but compatible) types than the `ts-morph` engine.
 
 ## Features
 
@@ -232,6 +256,8 @@ Here is the list of the configuration options you can use in the JSON file:
 | `generateDefaultSdkInterface` | `true`          | `boolean`     | Set to `false` to not generate a default SDK interface when it does not exist yet     |
 | `generateTimestamps`          | `true`          | `boolean`     | Set to `false` to not put the timestamp in the generated SDK files                    |
 | `verbose`                     | `false`         | `boolean`     | Display verbose informations                                                          |
+| `engine`                      | `tsgo`          | `string`      | Analysis engine: `tsgo`, `typescript` or `ts-morph` (see [How fast is it?](#how-fast-is-it)) |
+| `typescriptPath`              | -               | `string`      | TypeScript package used by the `typescript` engine (default: the one installed for the API) |
 | `noColor`                     | `false`         | `boolean`     | Disable colored output                                                                |
 
 ## Magic types
@@ -274,6 +300,22 @@ To solve this problem, we can add a `magicTypes` entry in our configuration file
 Now, when the SDK generator encounters the `Collection` type when it's imported from `@mikro-orm/core/entity/Collection.d.ts`, it will link to the `placeholderContent` we provided instead.
 
 Note that some magic types are already [built-in](src/analyzer/builtin.ts), such as the one we just saw. If you use a library very frequently and think others may benefit from a new magic type, feel free to [open a PR](https://github.com/lonestone/nest-sdk-generator/pulls)!
+
+## Development
+
+```shell
+npm run build            # Build the generator
+npm run build:baseline   # Build version 2.3.1 into .parity/baseline, used as a reference by the tests
+npm test                 # Run the parity tests
+```
+
+The tests generate SDKs for the fixture API in `test/fixtures` (and for error cases) with:
+
+- the baseline build, and the `ts-morph` engine: they must produce exactly the same output
+- the analyzer used by the `tsgo` and `typescript` engines, running on ts-morph's TypeScript 4.8 program: it must also produce exactly the same output, which shows it is equivalent to the original analyzer
+- the `tsgo` and `typescript` engines: they must produce exactly the same output
+
+To also run them on a real project, set `PARITY_REAL_API_CONFIG` to the path of its generator configuration file. Generated files are written to a temporary directory.
 
 ## Frequently-asked questions
 

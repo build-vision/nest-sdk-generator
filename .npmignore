@@ -1,2 +1,5 @@
 demo
 front/src/sdk
+/.parity
+/test
+/scripts

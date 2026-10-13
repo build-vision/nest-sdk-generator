@@ -26,6 +26,15 @@ export interface Config {
     }
   }
 
+  /**
+   * Engine used to analyze the API (default: "tsgo")
+   * - "tsgo": TypeScript 7's native compiler (fastest)
+   * - "typescript": the API's own TypeScript compiler (6.x) running in-process; same output as "tsgo"
+   * - "ts-morph": the original analyzer (TypeScript 4.8); same output as previous versions of this tool
+   * Can be overridden with the `--engine` command-line option
+   */
+  readonly engine?: 'tsgo' | 'typescript' | 'ts-morph'
+
   /** If the SDK interface file does not exist yet, create one automatically (enabled by default) */
   readonly generateDefaultSdkInterface?: boolean
 
@@ -60,6 +69,12 @@ export interface Config {
   readonly sdkOutputPath: string
   /** Path to custom tsconfig file */
   readonly tsconfigFile?: string
+
+  /**
+   * Path to the TypeScript package used by the "typescript" engine
+   * (default: the "typescript" package installed for the API, resolved from `apiInputPath`)
+   */
+  readonly typescriptPath?: string
 
   /** Enable verbose mode */
   readonly verbose?: boolean

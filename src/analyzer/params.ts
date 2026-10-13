@@ -6,61 +6,25 @@ import { ClassDeclaration, Decorator, MethodDeclaration, Node, ParameterDeclarat
 
 import { debug, panic } from '../logging'
 
-import { SdkHttpMethod } from './methods'
 import { paramsFromRoute, Route } from './route'
-import { ResolvedTypeDeps, resolveTypeDependencies } from './typedeps'
+import {
+  ArgDecorator,
+  SdkMethodParams as BaseSdkMethodParams,
+  getParamResolvedTypes,
+  isParamResolvedType,
+  SdkHttpMethod,
+  SdkMethodParam,
+  SdkMethodParamMap,
+} from './sdk'
+import { resolveTypeDependencies } from './typedeps'
 
-/**
- * Type of a parameter that must be passed to an SDK method: Body, Query or Route Param
- * Supports accessing parameters individually by key or as a whole object
- *
- * EXAMPLE
- *
- * Controller Method:
- *
- * getStuff(@Query('email') email: string, @Query('companyId'): CompanyId)
- *
- * SDK Method Param:
- * { email: string, companyId: CompanyId }
- *
- * OR
- *
- * Controller Method:
- * type EmailAndCompanyId = { email: string, companyId: CompanyId }
- * getStuff(@Query(): EmailAndCompanyId)
- *
- * SDK Method Param:
- * EmailAndCompanyId
- */
-
-export type SdkMethodParam = SdkMethodParamMap | ResolvedTypeDeps | null
-export type SdkMethodParamMap = { [key: string]: ResolvedTypeDeps }
-
-export const isParamResolvedType = (param: SdkMethodParam): param is ResolvedTypeDeps => {
-  if (param === null) {
-    return false
-  }
-  return 'rawType' in param && 'resolvedType' in param && 'relativeFilePath' in param && 'dependencies' in param && 'localTypes' in param
-}
-
-export const getParamResolvedTypes = (param: SdkMethodParam): ResolvedTypeDeps[] => {
-  if (param === null) {
-    return []
-  }
-  if (isParamResolvedType(param)) {
-    return [param]
-  }
-  return Object.values(param)
-}
+export { ArgDecorator, getParamResolvedTypes, isParamResolvedType, SdkMethodParam, SdkMethodParamMap }
 
 /**
  * SDK interface for a controller's method's parameters
  */
-export interface SdkMethodParams {
-  bodyParams: SdkMethodParam
+export interface SdkMethodParams extends BaseSdkMethodParams {
   context: MethodContext
-  queryParams: SdkMethodParam
-  routeParams: SdkMethodParam
 }
 
 export type MethodContext = {
@@ -70,12 +34,6 @@ export type MethodContext = {
   httpMethod: SdkHttpMethod
   method: MethodDeclaration
   route: Route
-}
-
-export enum ArgDecorator {
-  Body = 'Body',
-  Param = 'Param',
-  Query = 'Query',
 }
 
 export type DecoratedArg = {

@@ -10,44 +10,26 @@ import { MagicType } from '../config'
 import { debug, format, panic, unreachable, warn } from '../logging'
 
 import { analyzeClassDeps } from './classdeps'
-import { SdkModules } from './controllers'
-import { getParamResolvedTypes } from './params'
+import {
+  ExtractedType,
+  flattenSdkResolvedTypes,
+  locateTypesFile,
+  MODULE_EXTENSIONS,
+  TypeLocation,
+  TypeLocationWithExt,
+  TypesExtractorContent,
+} from './sdk'
 import { getImportResolvedType, ResolvedTypeDeps, resolveTypeDependencies } from './typedeps'
 
-/** Valid extensions for TypeScript module files */
-export const MODULE_EXTENSIONS = ['.ts', '.d.ts', '.tsx', '.d.tsx', '.js', '.jsx']
-
-/**
- * Location of an imported type
- */
-export interface TypeLocation {
-  readonly relativePathNoExt: string
-  readonly typename: string
+export {
+  ExtractedType,
+  flattenSdkResolvedTypes,
+  locateTypesFile,
+  MODULE_EXTENSIONS,
+  TypeLocation,
+  TypeLocationWithExt,
+  TypesExtractorContent,
 }
-
-/**
- * Location of an imported type after figuring out its extension
- */
-export interface TypeLocationWithExt extends TypeLocation {
-  readonly relativePath: string
-}
-
-/**
- * Extracted imported type
- */
-export interface ExtractedType extends TypeLocationWithExt {
-  /** Type's declaration */
-  readonly content: string
-
-  /** Types this one depends on */
-  readonly dependencies: TypeLocationWithExt[]
-
-  /** Type parameters (e.g. <T>) */
-  readonly typeParams: string[]
-}
-
-// Maps files to records mapping themselves type names to their declaration code
-export type TypesExtractorContent = Map<string, Map<string, ExtractedType>>
 
 /**
  * Types extractor
@@ -426,55 +408,4 @@ export class TypesExtractor {
 
     return extracted
   }
-}
-
-/**
- * Locate the files containing a list of a resolved types
- * @param resolvedTypes
- * @returns
- */
-export function locateTypesFile(resolvedTypes: Array<ResolvedTypeDeps>): TypeLocation[] {
-  const out = new Array<TypeLocation>()
-
-  for (const resolved of resolvedTypes) {
-    for (const [file, types] of resolved.dependencies) {
-      for (const typename of types) {
-        if (!out.find((loc) => loc.typename === typename && loc.relativePathNoExt === file)) {
-          out.push({ typename, relativePathNoExt: file })
-        }
-      }
-    }
-
-    for (const typename of resolved.localTypes) {
-      if (!out.find((loc) => loc.typename === typename && loc.relativePathNoExt === resolved.relativeFilePath)) {
-        out.push({ typename, relativePathNoExt: resolved.relativeFilePath })
-      }
-    }
-  }
-
-  return out
-}
-
-/**
- * Flatten a tree of resolved type dependencies
- * @param sdkModules
- * @returns
- */
-export function flattenSdkResolvedTypes(sdkModules: SdkModules): ResolvedTypeDeps[] {
-  const flattened = new Array<ResolvedTypeDeps>()
-
-  for (const module of sdkModules.values()) {
-    for (const controller of module.values()) {
-      for (const method of controller.methods.values()) {
-        const { bodyParams, queryParams, routeParams } = method.params
-
-        flattened.push(method.returnType)
-        flattened.push(...getParamResolvedTypes(routeParams))
-        flattened.push(...getParamResolvedTypes(queryParams))
-        flattened.push(...getParamResolvedTypes(bodyParams))
-      }
-    }
-  }
-
-  return flattened
 }

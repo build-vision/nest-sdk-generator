@@ -7,43 +7,12 @@ import { ClassDeclaration, MethodDeclaration, Node } from 'ts-morph'
 
 import { debug, format } from '../logging'
 
-import { extractParams, SdkMethodParams } from './params'
-import { analyzeUri, debugUri, Route } from './route'
-import { ResolvedTypeDeps, resolveTypeDependencies } from './typedeps'
+import { extractParams } from './params'
+import { analyzeUri, debugUri } from './route'
+import { SdkHttpMethod, SdkMethod } from './sdk'
+import { resolveTypeDependencies } from './typedeps'
 
-/**
- * SDK interface for a single controller's method
- */
-export interface SdkMethod {
-  /** Method's HTTP method (e.g. GET / POST) */
-  readonly httpMethod: SdkHttpMethod
-
-  /** Method's name */
-  readonly name: string
-
-  /** Method's parameters */
-  readonly params: SdkMethodParams
-
-  /** Method's return type with resolved dependencies */
-  readonly returnType: ResolvedTypeDeps
-
-  /** Method's parsed route */
-  readonly route: Route
-
-  /** Method's URI path */
-  readonly uriPath: string
-}
-
-/**
- * HTTP method of a controller's method
- */
-export enum SdkHttpMethod {
-  Delete = 'DELETE',
-  Get = 'GET',
-  Patch = 'PATCH',
-  Post = 'POST',
-  Put = 'PUT',
-}
+export { SdkHttpMethod, SdkMethod }
 
 /**
  * Generate a SDK interface for a controller

@@ -5,7 +5,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
-import { SdkContent } from '../analyzer'
+import { SdkContent } from '../analyzer/sdk'
 import { normalizeExternalFilePath } from '../analyzer/typedeps'
 import { Config } from '../config'
 import { debug, panic, println } from '../logging'
