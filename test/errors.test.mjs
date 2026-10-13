@@ -8,9 +8,9 @@ import os from 'node:os'
 import path from 'node:path'
 import { after, before, describe, test } from 'node:test'
 
-import { assertBuilt, cleanup, describeDiff, FAST_VARIANTS, FIXTURES, LEGACY_VARIANTS, runAllVariants, writeFiles } from './harness.mjs'
+import { assertBuilt, cleanup, describeDiff, FAST_VARIANTS, FIXTURE_PACKAGES, LEGACY_VARIANTS, runAllVariants, writeFiles } from './harness.mjs'
 
-const NEST_COMMON = path.join(FIXTURES, 'api', 'node_modules', '@nestjs', 'common')
+const NEST_COMMON = path.join(FIXTURE_PACKAGES, '@nestjs', 'common')
 
 const projectsRoot = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'nest-sdk-generator-errors-'))
 
