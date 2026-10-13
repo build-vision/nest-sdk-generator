@@ -19,7 +19,7 @@ export const TYPESCRIPT_6_PATH = path.dirname(require.resolve('typescript-6/pack
 
 /**
  * Ways to run the generator
- * - baseline: the generator as built from the main branch (see scripts/build-baseline.sh)
+ * - baseline: version 2.3.1 of the generator, the last one before the analysis engines (see scripts/build-baseline.sh)
  * - the others: the current build, with each analysis engine
  */
 export const VARIANTS = {

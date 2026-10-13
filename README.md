@@ -305,7 +305,7 @@ Note that some magic types are already [built-in](src/analyzer/builtin.ts), such
 
 ```shell
 npm run build            # Build the generator
-npm run build:baseline   # Build the main branch's generator into .parity/baseline, used as a reference by the tests
+npm run build:baseline   # Build version 2.3.1 into .parity/baseline, used as a reference by the tests
 npm test                 # Run the parity tests
 ```
 
